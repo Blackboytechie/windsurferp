@@ -1,3 +1,4 @@
+import { Product } from '@/types/product';
 export interface Customer {
   id: string;
   name: string;
@@ -10,6 +11,7 @@ export interface Customer {
   status: 'active' | 'inactive';
   created_at: string;
   updated_at: string;
+  contact_person?: string; 
 }
 
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -40,7 +42,7 @@ export interface SalesOrderItem {
   product?: Product;
   quantity: number;
   unit_price: number;
-  tax_rate: number;
+  tax_rate?: number;
   tax_amount: number;
   discount_rate: number;
   discount_amount: number;

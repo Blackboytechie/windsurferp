@@ -8,6 +8,7 @@ import { generateInvoice } from '@/utils/invoiceUtils';
 import { exportData, formatDataForExport } from '@/utils/exportUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { TableContainer } from '@/components/ui/table-container';
+import { SalesOrderStatus } from '@/types/sales';
 
 const formatDateForInput = (dateString: string | null): string => {
   if (!dateString) return '';
@@ -97,7 +98,7 @@ export default function SalesOrders() {
         'Customer GST': order.customer.gst_number,
         'Customer Phone': order.customer.phone,
         'Customer Email': order.customer.email,
-        'Items': order.items.map(item => 
+        'Items': order.items.map((item: SalesOrderItem) => 
           `${item.product.name} (${item.quantity} x ₹${item.unit_price})`
         ).join('\n'),
         'Subtotal': order.subtotal,
@@ -180,7 +181,7 @@ export default function SalesOrders() {
 
       // Refresh the sales orders list
       fetchSalesOrders();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating status:', error);
       toast({
         title: "Error",
@@ -209,7 +210,7 @@ export default function SalesOrders() {
       if (itemsError) throw itemsError;
 
       // Get fresh stock data for validation
-      const stockValidationPromises = orderWithItems.items.map(async (item) => {
+      const stockValidationPromises = orderWithItems.items.map(async (item: SalesOrderItem) => {
         const { data: product } = await supabase
           .from('products')
           .select('stock_quantity')
@@ -266,7 +267,7 @@ export default function SalesOrders() {
 
       // Refresh the sales orders list
       fetchSalesOrders();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating invoice:', error);
       toast({
         title: "Error",
@@ -508,7 +509,7 @@ interface SalesOrderFormProps {
 function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
-
+  
   const [formData, setFormData] = useState<SalesOrder>({
     order_date: formatDateForInput(salesOrder?.order_date || new Date().toISOString()),
     delivery_date: formatDateForInput(salesOrder?.delivery_date || ''),

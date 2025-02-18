@@ -7,7 +7,7 @@ export interface Product {
   unit: string | null;
   purchase_price: number;
   selling_price: number;
-  tax_rate: number;
+  tax_rate?: number;
   stock_quantity: number;
   min_stock_level: number;
   created_at: string;
