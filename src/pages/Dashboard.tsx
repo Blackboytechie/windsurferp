@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { SalesOrder, Invoice, Customer } from '@/types/sales';
+// import { SalesOrder, Invoice, Customer } from '@/types/sales';
 import { Product } from '@/types/inventory';
 import {
   LineChart,
@@ -30,7 +30,7 @@ interface DashboardStats {
   topSellingProducts: (Product & { total_quantity: number })[];
   recentActivity: {
     id: string;
-    type: 'sales_order' | 'invoice' | 'payment' | 'stock';
+    type: "payment" | "sales_order" | "invoice" | "stock";
     description: string;
     amount?: number;
     date: string;
@@ -162,7 +162,13 @@ export default function Dashboard() {
         }));
 
       // Get recent activity
-      const recentActivity = [];
+      const recentActivity: {
+        id: string;
+        type: "payment" | "sales_order" | "invoice" | "stock";
+        description: string;
+        amount?: number;
+        date: string;
+      }[] = [];
 
       // Recent sales orders
       const { data: recentSOs } = await supabase
