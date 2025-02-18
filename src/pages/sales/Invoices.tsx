@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import InvoiceTemplate from '@/components/invoices/InvoiceTemplate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { exportData, formatDataForExport } from '@/utils/exportUtils';
-import { generateInvoice } from '@/utils/invoiceUtils';
+import { exportData } from '@/utils/exportUtils';
 import PaymentModal from '../../components/PaymentModal';
+import { createRoot } from 'react-dom/client';
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<(Invoice & { 
@@ -15,7 +15,7 @@ export default function Invoices() {
   })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<(Invoice & { sales_order: SalesOrder & { customer: Customer } }) | null>(null);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -52,20 +52,6 @@ export default function Invoices() {
     }
   };
 
-  const getStatusBadgeColor = (status: Invoice['status']) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'partial':
-        return 'bg-blue-100 text-blue-800';
-      case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'overdue':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const handlePrintInvoice = async (invoice: Invoice) => {
     try {
@@ -194,7 +180,7 @@ export default function Invoices() {
         'Customer GST': invoice.sales_order.customer.gst_number,
         'Customer Phone': invoice.sales_order.customer.phone,
         'Customer Email': invoice.sales_order.customer.email,
-        'Items': invoice.sales_order.items.map(item => 
+        'Items': invoice.sales_order.items.map((item: { product: { name: string }, quantity: number, unit_price: number }) => 
           `${item.product.name} (${item.quantity} x ₹${item.unit_price})`
         ).join('\n'),
         'Subtotal': invoice.subtotal,
@@ -202,7 +188,7 @@ export default function Invoices() {
         'Total Amount': invoice.total_amount,
         'Paid Amount': invoice.paid_amount,
         'Balance': invoice.total_amount - invoice.paid_amount,
-        'Payments': invoice.payments.map(payment => 
+        'Payments': invoice.payments.map((payment: { amount: number, payment_mode: string, payment_date: string }) => 
           `₹${payment.amount} (${payment.payment_mode}) on ${new Date(payment.payment_date).toLocaleDateString()}`
         ).join('\n'),
       }));
@@ -219,20 +205,13 @@ export default function Invoices() {
     }
   };
 
-  const handlePayment = (invoice) => {
+  const handlePayment = (invoice: Invoice & { sales_order: SalesOrder & { customer: Customer } }) => {
     setSelectedInvoice(invoice);
     setShowPaymentModal(true);
   };
 
-  const updateInvoiceState = (invoiceId, newPaidAmount) => {
-    setInvoices((prevInvoices) =>
-      prevInvoices.map((inv) =>
-        inv.id === invoiceId ? { ...inv, paid_amount: newPaidAmount } : inv
-      )
-    );
-  };
-
   const filteredInvoices = invoices.filter(invoice => {
+
     const invoiceDate = new Date(invoice.invoice_date).toISOString().split('T')[0];
     return invoiceDate >= startDate && invoiceDate <= endDate;
   });
@@ -299,11 +278,11 @@ export default function Invoices() {
                 </span>
               </div>
 
-              <div className="flex-1">
+                <div className="flex-1">
                 <div className="text-sm">
                   <p className="font-medium">{invoice.sales_order.customer.name}</p>
-                  <p className="text-gray-600">{invoice.sales_order.customer.contact_person}</p>
                 </div>
+
 
                 <div className="mt-4 space-y-1">
                   <div className="flex justify-between text-sm">
@@ -360,190 +339,5 @@ export default function Invoices() {
   );
 }
 
-interface PaymentFormProps {
-  invoice: Invoice & { sales_order: SalesOrder & { customer: Customer } };
-  onClose: () => void;
-  onSave: () => void;
-}
 
-function PaymentForm({ invoice, onClose, onSave }: PaymentFormProps) {
-  const [formData, setFormData] = useState<Partial<SalesPayment>>({
-    payment_date: new Date().toISOString().split('T')[0],
-    amount: invoice.total_amount - invoice.paid_amount,
-    payment_method: 'bank_transfer',
-    reference_number: '',
-    notes: '',
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      // Create payment record
-      const { error: paymentError } = await supabase
-        .from('sales_payments')
-        .insert([
-          {
-            invoice_id: invoice.id,
-            ...formData,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-
-      if (paymentError) throw paymentError;
-
-      // Update invoice status and paid amount
-      const newPaidAmount = invoice.paid_amount + (formData.amount || 0);
-      const newStatus = newPaidAmount >= invoice.total_amount ? 'paid' : 'partial';
-
-      const { error: invoiceError } = await supabase
-        .from('invoices')
-        .update({
-          status: newStatus,
-          paid_amount: newPaidAmount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', invoice.id);
-
-      if (invoiceError) throw invoiceError;
-
-      // Update customer outstanding balance
-      const { error: customerError } = await supabase
-        .from('customers')
-        .update({
-          outstanding_balance: supabase.rpc('decrement', { amount: formData.amount || 0 }),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', invoice.sales_order.customer_id);
-
-      if (customerError) throw customerError;
-
-      // Create customer ledger entry
-      const { error: ledgerError } = await supabase
-        .from('customer_ledger')
-        .insert([
-          {
-            customer_id: invoice.sales_order.customer_id,
-            date: formData.payment_date,
-            type: 'payment',
-            reference_id: invoice.id,
-            reference_number: formData.reference_number,
-            debit: 0,
-            credit: formData.amount,
-            balance: supabase.rpc('get_customer_balance', { p_customer_id: invoice.sales_order.customer_id }),
-            notes: `Payment received for invoice: ${invoice.invoice_number}`,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-
-      if (ledgerError) throw ledgerError;
-
-      onSave();
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-md w-full">
-        <div className="p-6">
-          <h2 className="text-xl font-bold mb-4">Add Payment</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Invoice: {invoice.invoice_number}<br />
-            Customer: {invoice.sales_order.customer.name}<br />
-            Remaining Amount: ₹{(invoice.total_amount - invoice.paid_amount).toFixed(2)}
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Date</label>
-              <input
-                type="date"
-                required
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-                value={formData.payment_date}
-                onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Amount</label>
-              <input
-                type="number"
-                required
-                min="0.01"
-                step="0.01"
-                max={invoice.total_amount - invoice.paid_amount}
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <select
-                required
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-                value={formData.payment_method}
-                onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as SalesPayment['payment_method'] })}
-              >
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="upi">UPI</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Reference Number</label>
-              <input
-                type="text"
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-                value={formData.reference_number}
-                onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Notes</label>
-              <textarea
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-                rows={3}
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
-
-            {error && (
-              <div className="text-red-500 text-sm">{error}</div>
-            )}
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Save Payment'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}

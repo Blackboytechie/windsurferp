@@ -1,9 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { Invoice, SalesOrder, Customer } from '@/types/sales';
 
-const PaymentModal = ({ invoice, onClose, onPaymentRecorded }) => {
+interface Payment {
+  id: number;
+  reference_id: string;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  reference_number?: string;
+  status: string;
+  type: string;
+  notes: string;
+}
+
+interface PaymentModalProps {
+  invoice: Invoice & { sales_order: SalesOrder & { customer: Customer } };
+  onClose: () => void;
+  onPaymentRecorded: (amount: number) => void;
+}
+
+const PaymentModal = ({ invoice, onClose, onPaymentRecorded }: PaymentModalProps) => {
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [payments, setPayments] = useState([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [balanceAmount, setBalance] = useState(invoice.total_amount - invoice.paid_amount);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [referenceNumber, setReferenceNumber] = useState('');

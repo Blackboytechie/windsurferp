@@ -1,7 +1,29 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bill, Payment, PurchaseOrder, Supplier } from '@/types/purchase';
+import { Payment, PurchaseOrder, Supplier } from '@/types/purchase';
 import { Button } from '@/components/ui/button';
+
+interface Bill {
+  id: string;
+  bill_number: string;
+  bill_date: string;
+  due_date: string;
+  total_amount: number;
+  paid_amount: number;
+  status: 'pending' | 'partial' | 'paid';
+  purchase_order: PurchaseOrder & {
+    supplier: Supplier;
+    created_at: string;
+    po_number: string;
+  };
+}
+
+interface BillItemWithProduct {
+  quantity: number;
+  product: {
+    name: string;
+  };
+}
 import {
   Dialog,
   DialogContent,
@@ -52,8 +74,13 @@ export default function Bills() {
         .eq('bill_id', billId);
 
       if (error) throw error;
-      setBillItems(data.map(item => ({ name: item.product.name, quantity: item.quantity })) || []);
-      // console.log('Fetched bill items:', data);
+      setBillItems(
+        (data as unknown as BillItemWithProduct[]).map(item => ({
+
+          name: item.product.name,
+          quantity: item.quantity
+        })) || []
+      );
     } catch (error) {
       console.error('Error fetching bill items:', error);
     }
@@ -344,9 +371,9 @@ function PaymentForm({ bill, onClose, onSave }: PaymentFormProps) {
     amount: bill.total_amount - bill.paid_amount,
     payment_method: 'bank_transfer',
     reference_number: '',
-    notes: '',
-    type: 'Supplier Payment', // Add this line to set the type
+    notes: ''
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -357,7 +384,7 @@ function PaymentForm({ bill, onClose, onSave }: PaymentFormProps) {
 
     try {
       // Create the payment
-      const { data: payment, error: paymentError } = await supabase
+        const { error: paymentError } = await supabase
         .from('payments')
         .insert([
           {
@@ -425,7 +452,7 @@ function PaymentForm({ bill, onClose, onSave }: PaymentFormProps) {
               required
               className="mt-1 block w-full border rounded-md px-3 py-2"
               value={formData.payment_method}
-              onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as Payment['payment_method'] })}
             >
               <option value="cash">Cash</option>
               <option value="bank_transfer">Bank Transfer</option>
