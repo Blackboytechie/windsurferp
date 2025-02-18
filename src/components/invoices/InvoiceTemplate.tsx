@@ -70,12 +70,13 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, companyDetai
         <tbody>
           {invoice.sales_order.items.map((item, index) => {
             const amount = item.quantity * item.unit_price;
-            const gstAmount = (amount * item.gst_rate) / 100;
+            const gstRate = item.gst_rate ?? 0;
+            const gstAmount = (amount * gstRate) / 100;
             return (
               <tr key={index} className="border-b border-gray-200">
                 <td className="py-2">
-                  <div className="font-medium">{item.product.name}</div>
-                  <div className="text-sm text-gray-600">SKU: {item.product.sku}</div>
+                  <div className="font-medium">{item.product ? item.product.name : 'Unknown Product'}</div>
+                  <div className="text-sm text-gray-600">SKU: {item.product ? item.product.sku : 'N/A'}</div>
                 </td>
                 <td className="py-2 text-right">{item.quantity}</td>
                 <td className="py-2 text-right">₹{item.unit_price.toFixed(2)}</td>

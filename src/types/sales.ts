@@ -12,6 +12,7 @@ export interface Customer {
   created_at: string;
   updated_at: string;
   contact_person?: string; 
+  address?: string; 
 }
 
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -19,6 +20,7 @@ export type SalesOrderStatus = 'draft' | 'confirmed' | 'processing' | 'shipped' 
 export interface SalesOrder {
   id: string;
   order_number: string;
+  so_number: string; 
   customer_id: string;
   customer?: Customer;
   order_date: string;
@@ -33,6 +35,7 @@ export interface SalesOrder {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  items: SalesOrderItem[];
 }
 
 export interface SalesOrderItem {
@@ -43,6 +46,7 @@ export interface SalesOrderItem {
   quantity: number;
   unit_price: number;
   tax_rate?: number;
+  gst_rate?: number; 
   tax_amount: number;
   discount_rate: number;
   discount_amount: number;

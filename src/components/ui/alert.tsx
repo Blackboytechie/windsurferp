@@ -31,6 +31,6 @@ const AlertDescription = ({ children }: { children: React.ReactNode }) => {
   return <p className="mt-2 text-sm text-gray-600">{children}</p>;
 };
 
-Alert.Description = AlertDescription
+Alert.Description = AlertDescription;
 
 export { Alert, AlertDescription }
