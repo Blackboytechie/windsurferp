@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { SalesOrder, Customer, SalesOrderItem, Product } from '@/types/sales';
-
+import { SalesOrder, Customer, SalesOrderItem } from '@/types/sales';
+import { Product } from '@/types/product';
 export const generateInvoice = async (salesOrder: SalesOrder & { customer: Customer, items: (SalesOrderItem & { product: Product })[] }) => {
   try {
     // Start a Supabase transaction to handle both invoice creation and stock updates

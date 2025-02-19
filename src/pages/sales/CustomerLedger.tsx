@@ -13,7 +13,7 @@ export default function CustomerLedgerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
-  const [payments, setPayments] = useState<any[]>([]);
+  
   // Initialize date range to last 30 days by default
   const [dateRange, setDateRange] = useState(() => {
     const to = new Date();
@@ -171,7 +171,6 @@ export default function CustomerLedgerPage() {
         amount: entry.amount,
         balance: entry.balance
       })));
-      setPayments(payments || []);
     } catch (error) {
       console.error('Error fetching ledger:', error);
       setError(error instanceof Error ? error.message : 'Failed to load ledger entries');

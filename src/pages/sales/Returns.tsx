@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReturnHistory from './ReturnHistory';
 import ReturnForm from './ReturnForm';
@@ -15,7 +15,6 @@ export default function Returns() {
   const [quantity, setQuantity] = useState<number>(1);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState('new-return');
-  const [reason, setReason] = useState<string>('');
 
   interface Product {
     id: string;
@@ -40,12 +39,19 @@ export default function Returns() {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name')
+        .select('id, name, email, phone, gst_number, billing_address, shipping_address, status, created_at, updated_at, credit_limit')
         .eq('status', 'active')
         .order('name');
 
       if (error) throw error;
-      setCustomers(data || []);
+      
+      // Transform the data to ensure it matches Customer type
+      const typedCustomers: Customer[] = data?.map(customer => ({
+        ...customer,
+        notes: '', // Add missing notes property with default empty string
+        code: customer.id // Use id as code since it's missing
+      })) || [];
+      setCustomers(typedCustomers);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching customers:', error);

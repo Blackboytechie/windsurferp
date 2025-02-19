@@ -13,6 +13,8 @@ export interface Product {
   created_at: string;
   updated_at: string;
   tax_rate?: number;
+  stock_quantity: number;
+  min_stock_level: number;
 }
 
 export interface Category {

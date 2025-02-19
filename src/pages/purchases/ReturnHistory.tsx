@@ -273,7 +273,7 @@ export default function ReturnHistory() {
 
   const fetchSupplierProducts = async (productId: string) => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('products')
         .select('stock_quantity')
         .eq('id', productId)

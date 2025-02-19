@@ -26,11 +26,6 @@ interface PurchaseOrder {
   supplier_id: string;
 }
 
-interface Bill {
-  id: string;
-  purchase_order: PurchaseOrder;
-}
-
 interface PaymentWithBills {
   amount: number;
   payment_date: string;

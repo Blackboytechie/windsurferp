@@ -5,7 +5,7 @@ import { Product } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { generateInvoice } from '@/utils/invoiceUtils';
-import { exportData, formatDataForExport } from '@/utils/exportUtils';
+import { exportData} from '@/utils/exportUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { TableContainer } from '@/components/ui/table-container';
 import { SalesOrderStatus } from '@/types/sales';
@@ -99,7 +99,7 @@ export default function SalesOrders() {
         'Customer Phone': order.customer.phone,
         'Customer Email': order.customer.email,
         'Items': order.items.map((item: SalesOrderItem) => 
-          `${item.product.name} (${item.quantity} x ₹${item.unit_price})`
+          `${item.product?.name || 'Unknown Product'} (${item.quantity} x ₹${item.unit_price})`
         ).join('\n'),
         'Subtotal': order.subtotal,
         'Tax Amount': order.tax_amount,
@@ -507,10 +507,11 @@ interface SalesOrderFormProps {
 }
 
 function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  
+  const navigate = useNavigate();  
   const [formData, setFormData] = useState<SalesOrder>({
+    id: salesOrder?.id || '',
+    order_number: salesOrder?.order_number || '',
+    so_number: salesOrder?.so_number || '',
     order_date: formatDateForInput(salesOrder?.order_date || new Date().toISOString()),
     delivery_date: formatDateForInput(salesOrder?.delivery_date || ''),
     status: salesOrder?.status || 'draft',
@@ -518,8 +519,13 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
     billing_address: salesOrder?.billing_address || '',
     customer_id: salesOrder?.customer_id || '',
     notes: salesOrder?.notes || '',
-    discount_amount: 0, // Set default value
+    subtotal: salesOrder?.subtotal || 0,
+    discount_amount: salesOrder?.discount_amount || 0,
     tax_amount: salesOrder?.tax_amount || 0,
+    total_amount: salesOrder?.total_amount || 0,
+    created_at: salesOrder?.created_at || new Date().toISOString(),
+    updated_at: salesOrder?.updated_at || new Date().toISOString(),
+    items: salesOrder?.items || []
   });
   console.log("formdata :",formData);
   
@@ -604,7 +610,12 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
 
   const updateItem = (index: number, updates: Partial<SalesOrderItem>) => {
     const updatedItems = [...items];
-    updatedItems[index] = { ...updatedItems[index], ...updates };
+const currentItem = updatedItems[index];
+updatedItems[index] = {
+  ...currentItem,
+  ...updates,
+  product: currentItem.product // Preserve the existing product object with all its properties
+} as SalesOrderItem & { product: Product };
     
     // Calculate item totals
     const item = updatedItems[index];
@@ -789,8 +800,12 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
         discount_rate: 0,
         discount_amount: 0,
         total_amount: product.selling_price,
-        product,
-      },
+        product: {
+          ...product,
+          stock_quantity: product.stock_quantity || 0,
+          min_stock_level: product.min_stock_level || 0
+        }
+      } as SalesOrderItem & { product: Product }
     ]);
   };
 
@@ -1019,7 +1034,7 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
               <textarea
                 className="mt-1 block w-full border rounded-md px-3 py-2"
                 rows={3}
-                value={formData.notes}
+                value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </div>
