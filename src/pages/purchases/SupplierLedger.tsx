@@ -18,14 +18,6 @@ interface Supplier {
   name: string;
 }
 
-interface PurchaseOrder {
-  id: string;
-  po_number: string;
-  order_date: string;
-  total_amount: number;
-  supplier_id: string;
-}
-
 interface PaymentWithBills {
   amount: number;
   payment_date: string;
