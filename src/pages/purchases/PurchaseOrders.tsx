@@ -5,13 +5,21 @@ import { Product } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { TableContainer } from '@/components/ui/table-container';
 
+interface PurchaseOrderStats {
+  total: number;
+  pending: number;
+  received: number;
+  draft: number;
+  [key: string]: number;
+}
+
 export default function PurchaseOrders() {
   const [purchaseOrders, setPurchaseOrders] = useState<(PurchaseOrder & { supplier: Supplier })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showReceiveForm, setShowReceiveForm] = useState(false);
-  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
-  const [stats, setStats] = useState({
+  const [selectedPO, setSelectedPO] = useState<(PurchaseOrder & { supplier: Supplier }) | null>(null);
+  const [stats, setStats] = useState<PurchaseOrderStats>({
     total: 0,
     pending: 0,
     received: 0,
@@ -44,7 +52,7 @@ export default function PurchaseOrders() {
 
   useEffect(() => {
     // Calculate stats whenever purchase orders change
-    const newStats = purchaseOrders.reduce((acc, po) => {
+    const newStats = purchaseOrders.reduce<PurchaseOrderStats>((acc, po) => {
       acc.total += po.total_amount || 0;
       acc[po.status] = (acc[po.status] || 0) + 1;
       return acc;

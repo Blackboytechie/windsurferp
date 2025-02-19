@@ -1,5 +1,3 @@
-import React from 'react';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -69,6 +67,8 @@ export default function ReturnForm({
   handleRemoveItem,
   handleSubmitReturn
 }: ReturnFormProps) {
+  console.log('returnItems', returnItems);
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">

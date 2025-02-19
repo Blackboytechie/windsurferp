@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, StockMovement } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
+import { v4 as uuidv4 } from 'uuid';
 
 interface StockMovementFormProps {
   product: Product;
@@ -10,7 +11,7 @@ interface StockMovementFormProps {
 }
 
 export default function StockMovementForm({ product, onClose, onSave }: StockMovementFormProps) {
-  const [formData, setFormData] = useState<Partial<StockMovement>>({
+  const [formData, setFormData] = useState<Partial<StockMovement>>({  
     type: 'in',
     quantity: 0,
     reference_type: 'adjustment',
@@ -23,28 +24,32 @@ export default function StockMovementForm({ product, onClose, onSave }: StockMov
     e.preventDefault();
     setLoading(true);
     setError('');
-
+  
     try {
+      // Generate a UUID for reference_id
+      const reference_id = uuidv4();
+
       // Start a Supabase transaction
-      const { data: stockMovement, error: movementError } = await supabase
+      const { error: movementError } = await supabase
         .from('stock_movements')
         .insert([
           {
             product_id: product.id,
+            reference_id,
             ...formData,
             created_at: new Date().toISOString(),
           },
         ])
         .select()
         .single();
-
+      
       if (movementError) throw movementError;
-
+  
       // Update product stock level
       const newStockLevel = formData.type === 'in'
         ? product.stock_level + (formData.quantity || 0)
         : product.stock_level - (formData.quantity || 0);
-
+  
       const { error: updateError } = await supabase
         .from('products')
         .update({
@@ -52,9 +57,9 @@ export default function StockMovementForm({ product, onClose, onSave }: StockMov
           updated_at: new Date().toISOString(),
         })
         .eq('id', product.id);
-
+  
       if (updateError) throw updateError;
-
+  
       onSave();
     } catch (error: any) {
       setError(error.message);

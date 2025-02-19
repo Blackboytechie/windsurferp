@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReturnHistory from './ReturnHistory';
 import ReturnForm from './ReturnForm';
@@ -13,7 +13,6 @@ export default function Returns() {
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState('new-return');
 
   interface Supplier {
     id: string;
@@ -25,6 +24,7 @@ export default function Returns() {
     name: string;
     quantity: number;
     bill_number: string;
+    bill_id: string;
   }
 
   interface ReturnItem {
@@ -56,17 +56,26 @@ export default function Returns() {
     }
   };
 
+  interface BillItem {
+    product_id: string;
+    bill: {
+      id: string;
+      bill_number: string;
+      purchase_order: {
+        supplier_id: string;
+      };
+    };
+  }
+
   const fetchSupplierProducts = async (supplierId: string) => {
     try {
-      // First get the products and their current quantity
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, name, stock_quantity')
-        .gt('stock_quantity', 0);  // Only get products with quantity > 0
+        .gt('stock_quantity', 0);
 
       if (productsError) throw productsError;
 
-      // Then get the bills for these products from this supplier
       const { data: billItems, error: billsError } = await supabase
         .from('bill_items')
         .select(`
@@ -79,11 +88,11 @@ export default function Returns() {
             )
           )
         `)
-        .eq('bill.purchase_order.supplier_id', supplierId);
+        .eq('bill.purchase_order.supplier_id', supplierId) as { data: BillItem[] | null; error: any };
 
       if (billsError) throw billsError;
+      if (!products || !billItems) return;
 
-      // Filter products that have bills from this supplier
       const supplierProductIds = new Set(billItems.map(item => item.product_id));
       const availableProducts = products
         .filter(product => supplierProductIds.has(product.id))
@@ -92,13 +101,25 @@ export default function Returns() {
           return {
             id: product.id,
             name: product.name,
-            quantity: product.stock_quantity, // Use current quantity from products table
-            bill_id: billItem?.bill.id,
-            bill_number: billItem?.bill.bill_number
+            quantity: product.stock_quantity,
+            bill_id: billItem?.bill?.id,
+            bill_number: billItem?.bill?.bill_number
           };
         });
 
-      setSupplierProducts(availableProducts);
+      setSupplierProducts(availableProducts
+        .filter((product): product is (Product & { bill_id: string; bill_number: string }) => 
+          product.bill_id !== undefined && 
+          product.bill_number !== undefined
+        )
+        .map(product => ({
+          id: product.id,
+          name: product.name,
+          quantity: product.quantity,
+          bill_number: product.bill_number,
+          bill_id: product.bill_id // Added missing bill_id property
+        }))
+      );
     } catch (error) {
       console.error('Error fetching supplier products:', error);
       setMessage({ type: 'error', text: 'Error fetching products.' });
@@ -171,35 +192,41 @@ export default function Returns() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="new-return" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="new-return">New Return</TabsTrigger>
-          <TabsTrigger value="history">Return History</TabsTrigger>
-        </TabsList>
-        <TabsContent value="new-return">
-          <ReturnForm
-            suppliers={suppliers}
-            selectedSupplier={selectedSupplier}
-            setSelectedSupplier={setSelectedSupplier}
-            supplierProducts={supplierProducts}
-            returnItems={returnItems}
-            setReturnItems={setReturnItems}
-            selectedProduct={selectedProduct}
-            setSelectedProduct={setSelectedProduct}
-            quantity={quantity}
-            setQuantity={setQuantity}
-            message={message}
-            setMessage={setMessage}
-            handleSupplierChange={handleSupplierChange}
-            handleAddItem={handleAddItem}
-            handleRemoveItem={handleRemoveItem}
-            handleSubmitReturn={handleSubmitReturn}
-          />
-        </TabsContent>
-        <TabsContent value="history">
-          <ReturnHistory />
-        </TabsContent>
-      </Tabs>
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      ) : (
+        <Tabs defaultValue="new-return" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="new-return">New Return</TabsTrigger>
+            <TabsTrigger value="history">Return History</TabsTrigger>
+          </TabsList>
+          <TabsContent value="new-return">
+            <ReturnForm
+              suppliers={suppliers}
+              selectedSupplier={selectedSupplier}
+              setSelectedSupplier={setSelectedSupplier}
+              supplierProducts={supplierProducts}
+              returnItems={returnItems}
+              setReturnItems={setReturnItems}
+              selectedProduct={selectedProduct}
+              setSelectedProduct={setSelectedProduct}
+              quantity={quantity}
+              setQuantity={setQuantity}
+              message={message}
+              setMessage={setMessage}
+              handleSupplierChange={handleSupplierChange}
+              handleAddItem={handleAddItem}
+              handleRemoveItem={handleRemoveItem}
+              handleSubmitReturn={handleSubmitReturn}
+            />
+          </TabsContent>
+          <TabsContent value="history">
+            <ReturnHistory />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

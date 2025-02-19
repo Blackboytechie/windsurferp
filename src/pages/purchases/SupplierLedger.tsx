@@ -1,20 +1,47 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue 
+  SelectValue
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { exportData } from '@/utils/exportUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from '@/utils/formatters';
 
+
 interface Supplier {
   id: string;
   name: string;
+}
+
+interface PurchaseOrder {
+  id: string;
+  po_number: string;
+  order_date: string;
+  total_amount: number;
+  supplier_id: string;
+}
+
+interface Bill {
+  id: string;
+  purchase_order: PurchaseOrder;
+}
+
+interface PaymentWithBills {
+  amount: number;
+  payment_date: string;
+  bills: {
+    id: string;
+    purchase_order: {
+      id: string;
+      supplier_id: string;
+      po_number?: string;
+    };
+  }[];
 }
 
 interface LedgerEntry {
@@ -79,6 +106,7 @@ export default function SupplierLedgerPage() {
       if (poError) throw poError;
 
       // Fetch payments (credits)
+      // Update the payments query type handling
       const { data: payments, error: paymentError } = await supabase
         .from('payments')
         .select(`
@@ -88,27 +116,28 @@ export default function SupplierLedgerPage() {
             id,
             purchase_order:purchase_orders!inner(
               id,
-              supplier_id
+              supplier_id,
+              po_number
             )
           )
         `)
         .eq('bills.purchase_order.supplier_id', supplier.id)
         .gte('payment_date', startDate || '1900-01-01')
         .lte('payment_date', endDate || '2099-12-31')
-        .order('payment_date');
+        .order('payment_date') as { data: PaymentWithBills[] | null; error: any };
 
       if (paymentError) throw paymentError;
 
-      const totalPayments = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      const totalPayments = payments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
       // Create ledger entries
-      const ledgerEntries = [];
-      
+      const ledgerEntries: LedgerEntry[] = [];
+
       // Add purchase order entries
       purchaseOrders?.forEach(po => {
         if (!po) return;
         const totalAmount = Number(po.total_amount) || 0;
-        
-        
+
+
         ledgerEntries.push({
           id: `po-${po.id}`,
           date: po.order_date || new Date().toISOString().split('T')[0],
@@ -118,25 +147,26 @@ export default function SupplierLedgerPage() {
           debit: totalAmount,
           credit: 0,
           amount: totalAmount,
-          balance: totalAmount - totalPayments 
+          balance: totalAmount - totalPayments
         });
       });
 
       // Add payment entries
+      // Update the payment entries transformation
       payments?.forEach((payment, index) => {
         if (!payment) return;
-        const relatedPO = purchaseOrders?.find(po => po.id === payment.bills.purchase_order.id);
+        const relatedPO = payment.bills?.[0]?.purchase_order;
         const paymentAmount = Number(payment.amount) || 0;
-
+      
         // Ensure unique key generation
-        const paymentId = payment.id ? payment.id : `unknown-${index}`;
-
+        const paymentId = `payment-${index}`;
+      
         ledgerEntries.push({
-          id: `payment-${paymentId}-${new Date(payment.payment_date).getTime()}`, // Ensure unique key
+          id: `payment-${paymentId}-${new Date(payment.payment_date).getTime()}`,
           date: payment.payment_date || new Date().toISOString().split('T')[0],
           type: 'Payment',
-          reference: payment.reference_number || `Payment for ${relatedPO?.po_number || 'Unknown PO'}`,
-          notes: `Payment made via ${payment.payment_method || 'Unknown method'}`,
+          reference: `Payment for ${relatedPO?.po_number || 'Unknown PO'}`,
+          notes: `Payment made`,
           debit: 0,
           credit: paymentAmount,
           amount: -paymentAmount,
@@ -175,7 +205,11 @@ export default function SupplierLedgerPage() {
       Balance: entry.balance
     }));
 
-    exportData(data, `supplier_ledger_${supplier.name}_${new Date().toISOString().split('T')[0]}.csv`);
+    exportData({
+      data,
+      fileName: `supplier_ledger_${supplier.name}_${new Date().toISOString().split('T')[0]}.csv`,
+      format: 'csv'
+    });
   };
 
   return (
@@ -259,7 +293,7 @@ export default function SupplierLedgerPage() {
                 </tr>
               ) : (
                 ledgerEntries.map((entry) => (
-                  <tr 
+                  <tr
                     key={entry.id}
                     onClick={() => setSelectedEntry(entry)}
                     className="cursor-pointer hover:bg-gray-50 transition-colors"
@@ -276,7 +310,7 @@ export default function SupplierLedgerPage() {
                       {entry.reference}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap text-sm">
-                      {entry.type === 'Purchase Order' 
+                      {entry.type === 'Purchase Order'
                         ? formatCurrency(entry.debit)
                         : formatCurrency(entry.credit)
                       }
@@ -341,14 +375,14 @@ export default function SupplierLedgerPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-500">Amount</label>
                   <p className="mt-1">
-                    {selectedEntry.type === 'Purchase Order' 
+                    {selectedEntry.type === 'Purchase Order'
                       ? formatCurrency(selectedEntry.debit)
                       : formatCurrency(selectedEntry.credit)
                     }
                   </p>
                 </div>
               </div>
-              
+
               <div>
                 <label className="text-sm font-medium text-gray-500">Notes</label>
                 <p className="mt-1 text-sm text-gray-700">{selectedEntry.notes}</p>

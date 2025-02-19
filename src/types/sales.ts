@@ -13,6 +13,7 @@ export interface Customer {
   updated_at: string;
   contact_person?: string; 
   address?: string; 
+  code: string;
 }
 
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -88,6 +89,8 @@ export interface CustomerLedger {
   type: 'invoice' | 'payment' | 'credit_note' | 'debit_note';
   reference_id: string;
   reference_number: string;
+  reference: string;
+  amount: number;
   debit: number;
   credit: number;
   balance: number;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,27 +10,51 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+interface RawReturnData {
+  id: string;
+  bill_id: string;
+  product_id: string;
+  quantity: number;
+  status: string;
+  product: {
+    name: string | null;
+  } | null;
+  bill: {
+    bill_number: string | null;
+    purchase_order: {
+      supplier: {
+        id: string;
+        name: string;
+      } | null;
+    } | null;
+  } | null;
+}
+
 interface Return {
   id: string;
   bill_id: string;
   product_id: string;
   quantity: number;
   status: string;
-  supplier: {
-    id: string;
-    name: string;
-  };
   product: {
     name: string;
   };
   bill: {
     bill_number: string;
+    purchase_order?: {
+      supplier?: {
+        id: string;
+        name: string;
+      };
+    };
   };
 }
 
+interface FormattedReturn extends Return {}
+
 export default function ReturnHistory() {
   const [loading, setLoading] = useState(true);
-  const [returns, setReturns] = useState<Return[]>([]);
+  const [returns, setReturns] = useState<FormattedReturn[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string; }[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -97,13 +121,42 @@ export default function ReturnHistory() {
       const { data, error } = await query;
 
       if (error) throw error;
-
-      const formattedReturns = data?.map(item => ({
-        ...item,
-        supplier: item.bill.purchase_order.supplier
+      
+      const formattedReturns = (data as unknown as RawReturnData[])?.map(item => ({
+        id: item.id,
+        bill_id: item.bill_id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        status: item.status,
+        product: {
+          name: item.product?.name || ''
+        },
+        bill: {
+          bill_number: item.bill?.bill_number ?? '',
+          purchase_order: item.bill?.purchase_order ? {
+            supplier: item.bill.purchase_order.supplier ? {
+              id: String(item.bill.purchase_order.supplier.id),
+              name: String(item.bill.purchase_order.supplier.name)
+            } : undefined
+          } : undefined
+        }
       })) || [];
-
-      setReturns(formattedReturns);
+      
+      setReturns(formattedReturns.map(item => ({
+        ...item,
+        product: {
+          name: item.product?.name ?? ''
+        },
+        bill: {
+          ...item.bill,
+          purchase_order: item.bill.purchase_order ? {
+            supplier: item.bill.purchase_order.supplier ? {
+              id: String(item.bill.purchase_order.supplier.id),
+              name: String(item.bill.purchase_order.supplier.name)
+            } : undefined
+          } : undefined
+        }
+      })) as Return[]);
     } catch (error) {
       console.error('Error fetching returns:', error);
     } finally {
@@ -311,7 +364,7 @@ export default function ReturnHistory() {
                 {returns.map((item) => (
                   <tr key={item.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {item.supplier.name}
+                      {item.bill.purchase_order?.supplier?.name || ''}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {item.bill.bill_number}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   Card,
@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import Alert, { AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -30,10 +30,11 @@ import {
 interface SalesReturn {
   id: string;
   return_number: string;
+  customer_id: string;
   customer: {
     id: string;
     name: string;
-  };
+  } | null;
   return_date: string;
   status: string;
   total_amount: number;
@@ -81,6 +82,7 @@ export default function ReturnHistory() {
         .select(`
           id,
           return_number,
+          customer_id,
           customer:customers(id, name),
           return_date,
           status,
@@ -100,8 +102,22 @@ export default function ReturnHistory() {
       const { data, error } = await query;
 
       if (error) throw error;
-
-      setReturns(data || []);
+      
+      setReturns(
+        (data || []).map((item): SalesReturn => ({
+          id: item.id,
+          return_number: item.return_number,
+          customer_id: item.customer_id,
+          customer: Array.isArray(item.customer) ? item.customer[0] as { id: string; name: string } : item.customer as { id: string; name: string } || {
+            id: '',
+            name: 'Unknown Customer'
+          },
+          return_date: item.return_date,
+          status: item.status,
+          total_amount: item.total_amount,
+          reason: item.reason
+        }))
+      );
     } catch (err) {
       console.error('Error fetching returns:', err);
       setError('Failed to fetch returns history');

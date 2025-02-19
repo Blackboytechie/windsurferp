@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Customer } from '@/types/sales';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import Alert, { AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle, X } from 'lucide-react';
 
 interface Product {

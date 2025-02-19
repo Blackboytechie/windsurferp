@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Invoice, SalesOrder, Customer, SalesPayment } from '@/types/sales';
+import { Invoice, SalesOrder, Customer, } from '@/types/sales';
 import { Button } from '@/components/ui/button';
 import InvoiceTemplate from '@/components/invoices/InvoiceTemplate';
 import html2canvas from 'html2canvas';

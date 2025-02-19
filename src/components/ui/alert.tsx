@@ -1,9 +1,19 @@
 import * as React from "react"
+import { ForwardRefExoticComponent, RefAttributes } from 'react'
 
 import { cn } from "@/lib/utils"
 
 interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "destructive"
+}
+
+const AlertDescription = ({ children }: { children: React.ReactNode }) => {
+  return <p className="mt-2 text-sm text-gray-600">{children}</p>;
+};
+AlertDescription.displayName = "AlertDescription";
+
+interface AlertComponent extends ForwardRefExoticComponent<AlertProps & RefAttributes<HTMLDivElement>> {
+  Description: typeof AlertDescription;
 }
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
@@ -24,13 +34,9 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
       </div>
     )
   }
-)
+) as AlertComponent
+
 Alert.displayName = "Alert"
+Alert.Description = AlertDescription
 
-const AlertDescription = ({ children }: { children: React.ReactNode }) => {
-  return <p className="mt-2 text-sm text-gray-600">{children}</p>;
-};
-
-Alert.Description = AlertDescription;
-
-export { Alert, AlertDescription }
+export { Alert as default, AlertDescription }

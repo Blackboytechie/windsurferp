@@ -13,7 +13,7 @@ export default function CustomerLedgerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
-  const [payments, setPayments] = useState([]);
+  const [payments, setPayments] = useState<any[]>([]);
   // Initialize date range to last 30 days by default
   const [dateRange, setDateRange] = useState(() => {
     const to = new Date();
@@ -106,7 +106,7 @@ export default function CustomerLedgerPage() {
       if (paymentsError) throw paymentsError;
 
       // Create ledger entries
-      const ledgerEntries = [];
+      const ledgerEntries: LedgerEntry[] = [];
       
       // Add invoice entries
       invoices?.forEach(invoice => {
@@ -156,41 +156,43 @@ export default function CustomerLedgerPage() {
         entry.balance = runningBalance;
       });
 
-      setLedgerEntries(ledgerEntries);
+      setLedgerEntries(ledgerEntries.map(entry => ({
+        id: entry.id,
+        date: entry.date,
+        customer_id: customer?.id || '',
+        reference_id: entry.id,
+        reference: entry.reference,
+        reference_number: entry.reference,
+        created_at: entry.date,
+        type: entry.type.toLowerCase() as 'invoice' | 'payment' | 'credit_note' | 'debit_note',
+        notes: entry.notes,
+        debit: entry.debit,
+        credit: entry.credit,
+        amount: entry.amount,
+        balance: entry.balance
+      })));
       setPayments(payments || []);
     } catch (error) {
       console.error('Error fetching ledger:', error);
-      setError(error.message || 'Failed to load ledger entries');
+      setError(error instanceof Error ? error.message : 'Failed to load ledger entries');
     } finally {
       setLoading(false);
     }
   };
 
-  const getTypeDetails = (type: CustomerLedger['type']) => {
+  const getTypeDetails = (type: LedgerEntry['type']) => {
     switch (type) {
-      case 'invoice':
+      case 'Invoice':
         return {
           label: 'Invoice',
           color: 'text-red-600',
           icon: '📄'
         };
-      case 'payment':
+      case 'Payment':
         return {
           label: 'Payment',
           color: 'text-green-600',
           icon: '💰'
-        };
-      case 'credit_note':
-        return {
-          label: 'Credit Note',
-          color: 'text-blue-600',
-          icon: '📝'
-        };
-      case 'debit_note':
-        return {
-          label: 'Debit Note',
-          color: 'text-orange-600',
-          icon: '📋'
         };
       default:
         return {
@@ -229,10 +231,10 @@ export default function CustomerLedgerPage() {
 
       const formattedData = entriesWithBalance.map(entry => ({
         'Date': new Date(entry.date).toLocaleDateString(),
-        'Type': getTypeDetails(entry.type).label,
+        'Type': getTypeDetails(entry.type.charAt(0).toUpperCase() + entry.type.slice(1) as 'Invoice' | 'Payment').label,
         'Reference': entry.type === 'invoice' 
-          ? `Invoice #${entry.invoice?.invoice_number}`
-          : `Payment - ${entry.payment?.payment_method} (${entry.payment?.reference_number || 'N/A'})`,
+          ? `Invoice #${entry.reference_number}`
+          : `Payment - ${entry.reference}`,
         'Debit': entry.debit || '',
         'Credit': entry.credit || '',
         'Balance': entry.running_balance,
@@ -423,14 +425,24 @@ export default function CustomerLedgerPage() {
                 ledgerEntries.map((entry) => (
                   <tr 
                     key={entry.id}
-                    onClick={() => setSelectedEntry(entry)}
+                    onClick={() => setSelectedEntry({
+                      id: entry.id,
+                      date: entry.date,
+                      type: entry.type.charAt(0).toUpperCase() + entry.type.slice(1) as 'Invoice' | 'Payment',
+                      reference: entry.reference,
+                      notes: entry.notes,
+                      debit: entry.debit,
+                      credit: entry.credit,
+                      amount: entry.amount,
+                      balance: entry.balance
+                    })}
                     className="cursor-pointer hover:bg-gray-50 transition-colors"
                   >
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
                       {new Date(entry.date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
-                      <span className={`${entry.type === 'Invoice' ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`${entry.type === 'invoice' ? 'text-red-600' : 'text-green-600'}`}>
                         {entry.type}
                       </span>
                     </td>
@@ -438,7 +450,7 @@ export default function CustomerLedgerPage() {
                       {entry.reference}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap text-sm">
-                      {entry.type === 'Invoice' 
+                      {entry.type === 'invoice'
                         ? formatCurrency(entry.debit)
                         : formatCurrency(entry.credit)
                       }
@@ -536,7 +548,7 @@ export default function CustomerLedgerPage() {
 interface LedgerEntry {
   id: string;
   date: string;
-  type: string;
+  type: 'Invoice' | 'Payment';
   reference: string;
   notes: string;
   debit: number;
@@ -544,3 +556,37 @@ interface LedgerEntry {
   amount: number;
   balance: number;
 }
+
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  invoice_date: string;
+  total_amount: number;
+  paid_amount: number;
+  order_id: string;
+}
+
+interface SalesPayment {
+  id: string;
+  payment_date: string;
+  amount: number;
+  payment_method: string;
+  reference_number: string;
+  reference_id: string;
+  type: string;
+}
+
+interface LedgerEntry {
+  id: string;
+  date: string;
+  type: 'Invoice' | 'Payment';
+  reference: string;
+  notes: string;
+  debit: number;
+  credit: number;
+  amount: number;
+  balance: number;
+  invoice?: Invoice;
+  payment?: SalesPayment;
+}
+

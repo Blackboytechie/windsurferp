@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-// import { SalesOrder, Invoice, Customer } from '@/types/sales';
-import { Product } from '@/types/inventory';
-import { SalesOrderItem } from '@/types/sales';
+import { Product } from '@/types/product';
+// import { SalesOrderItem } from '@/types/sales';
 import {
   LineChart,
   Line,
@@ -203,13 +202,14 @@ export default function Dashboard() {
         `)
         .order('created_at', { ascending: false })
         .limit(5);
-
+      console.log("recentso :",recentSOs);
+      
       recentSOs?.forEach(so => {
         recentActivity.push({
           id: so.id,
           type: 'sales_order',
-          description: `New sales order ${so.order_number} from ${so.customer.name}`,
-          amount: so.total_amount,
+          description: `New sales order ${so.order_number || 'N/A'} from ${(so.customer as unknown as { name: string })?.name || 'Unknown Customer'}`,
+          amount: so.total_amount || 0,
           date: so.created_at,
         });
       });
@@ -232,7 +232,7 @@ export default function Dashboard() {
         recentActivity.push({
           id: payment.id,
           type: 'payment',
-          description: `Payment received from ${payment.customer.name} for amount ${payment.credit}`,
+          description: `Payment received from ${((payment.customer as unknown) as { name: string })?.name || 'Unknown'} for amount ${payment.credit}`,
           amount: payment.credit,
           date: payment.created_at,
         });
@@ -279,8 +279,8 @@ export default function Dashboard() {
       sixMonthsAgo.setHours(0, 0, 0, 0);
 
       const { data: payments } = await supabase
-        .from('sales_payments')
-        .select('amount, payment_mode, payment_date')
+        .from('payments')
+        .select('amount, payment_method, payment_date')
         .gte('payment_date', sixMonthsAgo.toISOString())
         .order('payment_date');
 
@@ -294,16 +294,22 @@ export default function Dashboard() {
             cash: 0,
             upi: 0,
             bank_transfer: 0,
-            cheque: 0,
+            cheque: 0
           };
         }
-        paymentsByMonth[month][payment.payment_mode.toLowerCase()] += payment.amount;
+        const paymentMode = payment.payment_method.toLowerCase();
+        if (paymentMode in paymentsByMonth[month]) {
+          paymentsByMonth[month][paymentMode] += payment.amount;
+        }
       });
 
       const salesByPaymentMode = Object.entries(paymentsByMonth)
         .map(([month, modes]) => ({
           month,
-          ...modes,
+          cash: modes.cash || 0,
+          upi: modes.upi || 0,
+          bank_transfer: modes.bank_transfer || 0,
+          cheque: modes.cheque || 0
         }))
         .sort((a, b) => {
           const [monthA, yearA] = a.month.split(' ');
@@ -439,12 +445,12 @@ export default function Dashboard() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {stats.categoryDistribution.map((entry, index) => (
+                      {stats.categoryDistribution.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
