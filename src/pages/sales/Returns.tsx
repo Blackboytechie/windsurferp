@@ -5,6 +5,34 @@ import ReturnForm from './ReturnForm';
 import { supabase } from '@/lib/supabase';
 import { Customer } from '@/types/sales';
 
+interface Product {
+  id: string;
+  name: string;
+  quantity: number;
+  order_number: string;
+  order_id: string;
+  stock_quantity?: number;
+}
+
+interface ReturnItem {
+  product_id: string;
+  product_name: string;
+  order_id: string;
+  order_number: string;
+  quantity: number;
+}
+
+interface SalesOrder {
+  id: string;
+  order_number: string;
+  customer_id?: string;
+}
+
+interface OrderItem {
+  product_id: string;
+  sales_order?: SalesOrder;
+}
+
 export default function Returns() {
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -15,21 +43,6 @@ export default function Returns() {
   const [quantity, setQuantity] = useState<number>(1);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState('new-return');
-
-  interface Product {
-    id: string;
-    name: string;
-    quantity: number;
-    order_number: string;
-  }
-
-  interface ReturnItem {
-    product_id: string;
-    product_name: string;
-    order_id: string;
-    order_number: string;
-    quantity: number;
-  }
 
   useEffect(() => {
     fetchCustomers();
@@ -66,7 +79,7 @@ export default function Returns() {
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, name, stock_quantity')
-        .gt('stock_quantity', 0);  // Only get products with quantity > 0
+        .gt('stock_quantity', 0);
 
       if (productsError) throw productsError;
 
@@ -85,18 +98,22 @@ export default function Returns() {
 
       if (ordersError) throw ordersError;
 
+      // Type assertion for orderItems
+      const typedOrderItems = (orderItems as unknown) as OrderItem[];
+
+
       // Filter products that have orders from this customer
-      const customerProductIds = new Set(orderItems?.map(item => item.product_id) || []);
+      const customerProductIds = new Set(typedOrderItems?.map(item => item.product_id) || []);
       const availableProducts = products
         .filter(product => customerProductIds.has(product.id))
         .map(product => {
-          const orderItem = orderItems?.find(item => item.product_id === product.id);
+          const orderItem = typedOrderItems?.find(item => item.product_id === product.id);
           return {
             id: product.id,
             name: product.name,
             quantity: product.stock_quantity,
-            order_id: orderItem?.sales_order?.id,
-            order_number: orderItem?.sales_order?.order_number
+            order_id: orderItem?.sales_order?.id ?? '',
+            order_number: orderItem?.sales_order?.order_number ?? ''
           };
         });
 
