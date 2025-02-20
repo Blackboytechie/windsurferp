@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { Payment, PurchaseOrder, Supplier } from '@/types/purchase';
 import { Button } from '@/components/ui/button';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { useReactToPrint } from "react-to-print";
+import { formatCurrency } from '@/utils/formatters';
+
 
 interface Bill {
   id: string;
@@ -38,6 +44,137 @@ export default function Bills() {
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [showBillDetails, setShowBillDetails] = useState(false);
   const [billItems, setBillItems] = useState<{ name: string; quantity: number }[]>([]);
+  const contentRef = useRef();
+  console.log("billItems :", billItems);
+  const handlePrint = useReactToPrint({
+    contentRef
+  });
+
+  const BillPrintComponent = React.forwardRef<HTMLDivElement, { bill: Bill }>((props, ref) => (
+    <div>
+      <div ref={ref} className="p-8 max-w-4xl mx-auto bg-white">
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-bold">MURALI AGENCIES</h1>
+          <p className="text-sm">10 Neela North side, Nagapattinam, Tamil Nadu, 611001</p>
+        </div>
+
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold">TAX INVOICE</h2>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div className="space-y-1">
+            <p><span className="font-medium">Reverse Charge:</span> No</p>
+            <p><span className="font-medium">Invoice No:</span> {props.bill.bill_number}</p>
+            <p><span className="font-medium">Invoice Date:</span> {new Date(props.bill.bill_date).toLocaleDateString()}</p>
+            <p><span className="font-medium">State:</span> Tamil Nadu <span className="font-medium">State Code:</span> 33</p>
+          </div>
+          <div className="space-y-1">
+            <p><span className="font-medium">Challan No:</span></p>
+            <p><span className="font-medium">Vehicle No:</span></p>
+            <p><span className="font-medium">Date of Supply:</span> {new Date(props.bill.bill_date).toLocaleDateString()}</p>
+            <p><span className="font-medium">Place of Supply:</span></p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm border-t border-b py-4">
+          <div>
+            <h3 className="font-bold mb-2">Details of Receiver | Billed to:</h3>
+            <div className="space-y-1">
+              <p><span className="font-medium">Name:</span> {props.bill.purchase_order.supplier.name}</p>
+              <p><span className="font-medium">Address:</span> {props.bill.purchase_order.supplier.address}</p>
+              <p><span className="font-medium">State:</span> Tamil Nadu <span className="font-medium">State Code:</span> 33</p>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-bold mb-2">Details of Consignee | Shipped to:</h3>
+            <div className="space-y-1">
+              <p><span className="font-medium">Name:</span> {props.bill.purchase_order.supplier.name}</p>
+              <p><span className="font-medium">Address:</span> {props.bill.purchase_order.supplier.address}</p>
+              <p><span className="font-medium">State:</span> Tamil Nadu <span className="font-medium">State Code:</span> 33</p>
+            </div>
+          </div>
+        </div>
+
+        <table className="w-full border-collapse mb-6 text-sm">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border p-2 text-left">Sr. No.</th>
+              <th className="border p-2 text-left">Name of product</th>
+              <th className="border p-2 text-center">QTY</th>
+              <th className="border p-2 text-center">Unit</th>
+              <th className="border p-2 text-right">Rate</th>
+              <th className="border p-2 text-right">Taxable Value</th>
+              <th className="border p-2 text-center" colSpan={2}>CGST</th>
+              <th className="border p-2 text-center" colSpan={2}>SGST</th>
+              <th className="border p-2 text-right">Total</th>
+            </tr>
+            <tr className="bg-gray-50">
+              <th className="border p-2" colSpan={6}></th>
+              <th className="border p-2 text-center">Rate</th>
+              <th className="border p-2 text-center">Amount</th>
+              <th className="border p-2 text-center">Rate</th>
+              <th className="border p-2 text-center">Amount</th>
+              <th className="border p-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {props.billItems.map((item, index) => {
+              const taxableValue = item.quantity * item.price;
+              const gstRate = 9.0; // Split total GST rate between CGST and SGST
+              const gstAmount = (taxableValue * gstRate) / 100;
+              console.log("item :", item);
+              return (
+                <tr key={index}>
+                  <td className="border p-2 text-center">{index + 1}</td>
+                  <td className="border p-2">{item.name}</td>
+                  <td className="border p-2 text-center">{item.quantity}</td>
+                  <td className="border p-2 text-center">{item.unit}</td>
+                  <td className="border p-2 text-right">{item.price.toFixed(2)}</td>
+                  <td className="border p-2 text-right">{taxableValue.toFixed(2)}</td>
+                  <td className="border p-2 text-center">{gstRate}%</td>
+                  <td className="border p-2 text-right">{gstAmount.toFixed(2)}</td>
+                  <td className="border p-2 text-center">{gstRate}%</td>
+                  <td className="border p-2 text-right">{gstAmount.toFixed(2)}</td>
+                  <td className="border p-2 text-right">{(taxableValue + 2 * gstAmount).toFixed(2)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="font-bold">
+              <td className="border p-2" colSpan={2}>Total Quantity</td>
+              <td className="border p-2 text-center">{billItems.reduce((sum, item) => sum + item.quantity, 0)}</td>
+              <td className="border p-2" colSpan={2}></td>
+              <td className="border p-2 text-right">₹{billItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)}</td>
+              <td className="border p-2" colSpan={2}>₹{billItems.reduce((sum, item) => sum + ((item.quantity * item.price * 6.0) / 100), 0).toFixed(2)}</td>
+              <td className="border p-2" colSpan={2}>₹{billItems.reduce((sum, item) => sum + ((item.quantity * item.price * 6.0) / 100), 0).toFixed(2)}</td>
+              <td className="border p-2 text-right">₹{billItems.reduce((sum, item) => sum + (item.quantity * item.price * 1.12), 0).toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div className="mb-6">
+          <p className="font-medium">Total Invoice Amount in words:</p>
+          <p>Forty One Thousand Seven Hundred Twenty Rupees Only</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div>
+            <h3 className="font-bold mb-2">Terms And Conditions:</h3>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>This is an electronically generated document.</li>
+              <li>All disputes are subject to Nagapattinam jurisdiction</li>
+            </ol>
+          </div>
+          <div className="text-right">
+            <p className="mb-12">For, MURALI AGENCIES</p>
+            <p>Authorised Signatory</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ));
 
   useEffect(() => {
     fetchBills();
@@ -70,15 +207,18 @@ export default function Bills() {
     try {
       const { data, error } = await supabase
         .from('bill_items')
-        .select(`quantity, product:products(name)`)
+        .select(`unit_price,total,quantity, product:products(name),unit:products(unit)`)
         .eq('bill_id', billId);
-
+      console.log("billItems data :", data);
       if (error) throw error;
       setBillItems(
         (data as unknown as BillItemWithProduct[]).map(item => ({
 
           name: item.product.name,
-          quantity: item.quantity
+          quantity: item.quantity,
+          price: item.unit_price,
+          total: item.total,
+          unit: item.unit.unit
         })) || []
       );
     } catch (error) {
@@ -110,7 +250,7 @@ export default function Bills() {
           {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
         </span>
       </div>
-      
+
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div>
           <p className="text-gray-600">Bill Date</p>
@@ -159,6 +299,16 @@ export default function Bills() {
             Add Payment
           </Button>
         )}
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            setSelectedBill(bill);
+            setTimeout(handlePrint, 100);
+          }}
+        >
+          Print
+        </Button>
       </div>
     </div>
   );
@@ -239,6 +389,7 @@ export default function Bills() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="mr-2"
                           onClick={() => {
                             setSelectedBill(bill);
                             setShowBillDetails(true);
@@ -251,6 +402,7 @@ export default function Bills() {
                           <Button
                             variant="outline"
                             size="sm"
+                            className="mr-2"
                             onClick={() => {
                               setSelectedBill(bill);
                               setShowPaymentForm(true);
@@ -259,6 +411,17 @@ export default function Bills() {
                             Pay
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedBill(bill);
+                            fetchBillItems(bill.id);
+                            setTimeout(handlePrint, 100);
+                          }}
+                        >
+                          Print
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -284,74 +447,87 @@ export default function Bills() {
         />
       )}
 
+      {selectedBill && (
+        <div style={{ display: 'none' }}>
+          <BillPrintComponent ref={contentRef} bill={selectedBill} billItems={billItems} />
+        </div>
+      )}
       <Dialog open={showBillDetails} onOpenChange={setShowBillDetails}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bill Details</DialogTitle>
           </DialogHeader>
           {selectedBill && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Bill Number</p>
-                  <p className="font-medium">{selectedBill.bill_number}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Supplier</p>
-                  <p className="font-medium">{selectedBill.purchase_order.supplier.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Bill Date</p>
-                  <p className="font-medium">{new Date(selectedBill.bill_date).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Due Date</p>
-                  <p className="font-medium">{new Date(selectedBill.due_date).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeColor(selectedBill.status)}`}>
-                    {selectedBill.status.charAt(0).toUpperCase() + selectedBill.status.slice(1)}
-                  </span>
-                </div>
-              </div>
-              <div className="border-t pt-4">
+            <>
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Total Amount</p>
-                    <p className="font-medium">₹{selectedBill.total_amount.toFixed(2)}</p>
+                    <p className="text-sm text-gray-500">Bill Number</p>
+                    <p className="font-medium">{selectedBill.bill_number}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Paid Amount</p>
-                    <p className="font-medium">₹{selectedBill.paid_amount.toFixed(2)}</p>
+                    <p className="text-sm text-gray-500">Supplier</p>
+                    <p className="font-medium">{selectedBill.purchase_order.supplier.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Bill Date</p>
+                    <p className="font-medium">{new Date(selectedBill.bill_date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Due Date</p>
+                    <p className="font-medium">{new Date(selectedBill.due_date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeColor(selectedBill.status)}`}>
+                      {selectedBill.status.charAt(0).toUpperCase() + selectedBill.status.slice(1)}
+                    </span>
                   </div>
                 </div>
-              </div>
-              <div className="border-t pt-4">
-                <p className="text-sm text-gray-500 mb-2">Items</p>
-                <div className="grid grid-cols-2 gap-4">
-                  {billItems.map(item => (
-                    <div key={item.name} className="flex justify-between">
-                      <p className="text-sm text-gray-500">{item.name}</p>
-                      <p className="font-medium">{item.quantity}</p>
+                <div className="border-t pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Total Amount</p>
+                      <p className="font-medium">₹{selectedBill.total_amount.toFixed(2)}</p>
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="border-t pt-4">
-                <p className="text-sm text-gray-500 mb-2">Purchase Order Details</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">PO Number</p>
-                    <p className="font-medium">{selectedBill.purchase_order.po_number}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">PO Date</p>
-                    <p className="font-medium">{new Date(selectedBill.purchase_order.created_at).toLocaleDateString()}</p>
+                    <div>
+                      <p className="text-sm text-gray-500">Paid Amount</p>
+                      <p className="font-medium">₹{selectedBill.paid_amount.toFixed(2)}</p>
+                    </div>
                   </div>
                 </div>
+                <div className="border-t pt-4">
+                  <p className="text-sm text-gray-500 mb-2">Items</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {billItems.map(item => (
+                      <div key={item.name} className="flex justify-between">
+                        <p className="text-sm text-gray-500">{item.name}</p>
+                        <p className="font-medium">{item.quantity}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t pt-4">
+                  <p className="text-sm text-gray-500 mb-2">Purchase Order Details</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">PO Number</p>
+                      <p className="font-medium">{selectedBill.purchase_order.po_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">PO Date</p>
+                      <p className="font-medium">{new Date(selectedBill.purchase_order.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              <div className="flex justify-end space-x-3 mt-4">
+                <Button variant="outline" >
+                  Download PDF
+                </Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -384,7 +560,7 @@ function PaymentForm({ bill, onClose, onSave }: PaymentFormProps) {
 
     try {
       // Create the payment
-        const { error: paymentError } = await supabase
+      const { error: paymentError } = await supabase
         .from('payments')
         .insert([
           {
@@ -452,7 +628,7 @@ function PaymentForm({ bill, onClose, onSave }: PaymentFormProps) {
               required
               className="mt-1 block w-full border rounded-md px-3 py-2"
               value={formData.payment_method}
-                onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as Payment['payment_method'] })}
+              onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as Payment['payment_method'] })}
             >
               <option value="cash">Cash</option>
               <option value="bank_transfer">Bank Transfer</option>
