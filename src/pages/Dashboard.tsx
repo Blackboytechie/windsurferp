@@ -345,9 +345,8 @@ export default function Dashboard() {
         // Render your dashboard content here
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
-
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
             <Card className="overflow-hidden">
               <CardContent className="p-3 md:p-6">
                 <div className="flex items-center justify-between space-x-2 md:space-x-4">
@@ -433,7 +432,7 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-3">
             {/* Category Distribution */}
             <div className="bg-white p-6 rounded-lg shadow">
               <h2 className="text-lg font-medium mb-4">Product Categories</h2>
@@ -473,8 +472,8 @@ export default function Dashboard() {
                     layout="vertical"
                     margin={{
                       top: 5,
-                      right: 30,
-                      left: 100,
+                      right: 20,
+                      left: 10,
                       bottom: 5,
                     }}
                   >
