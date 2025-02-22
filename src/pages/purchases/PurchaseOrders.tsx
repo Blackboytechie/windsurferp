@@ -174,16 +174,6 @@ export default function PurchaseOrders() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedPO(po);
-                              setShowForm(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
                           {po.status === 'draft' && (
                             <Button
                               variant="outline"
@@ -217,6 +207,16 @@ export default function PurchaseOrders() {
                               Receive
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedPO(po);
+                              setShowForm(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
                         </div>
                       </td>
                     </tr>
