@@ -103,7 +103,7 @@ export default function Inventory() {
 
       {/* Filters Section */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
             type="text"
             placeholder="Search products..."
@@ -127,6 +127,11 @@ export default function Inventory() {
             />
             <label htmlFor="lowStock" className="text-sm">Show Low Stock Items</label>
           </div>
+          <div className="flex items-center md:justify-end ">
+            <span className="text-sm font-medium">
+              Total Products: {products.length}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -139,7 +144,7 @@ export default function Inventory() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKU
+                    SI NO
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Name
@@ -172,9 +177,9 @@ export default function Inventory() {
                     </td>
                   </tr>
                 ) : (
-                  products.map((product) => (
+                  products.map((product,index) => (
                     <tr key={product.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">{product.sku}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{index+1}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{product.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{product.category}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
