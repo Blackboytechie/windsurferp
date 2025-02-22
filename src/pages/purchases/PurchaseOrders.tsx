@@ -157,7 +157,7 @@ export default function PurchaseOrders() {
                 ) : (
                   purchaseOrders.map((po) => (
                     <tr key={po.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">PO-{po.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{po.po_number}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm">
                           <p className="font-medium">{po.supplier.name}</p>
@@ -239,7 +239,7 @@ export default function PurchaseOrders() {
                 <div key={po.id} className="bg-white border rounded-lg p-4 flex flex-col">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="text-lg font-semibold">PO-{po.id}</h3>
+                      <h3 className="text-lg font-semibold">{po.po_number}</h3>
                       <p className="text-sm text-gray-600">{po.supplier.name}</p>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeColor(po.status)}`}>
@@ -261,16 +261,7 @@ export default function PurchaseOrders() {
                   </div>
 
                   <div className="mt-4 flex justify-end items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPO(po);
-                        setShowForm(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
+                    
                     {po.status === 'draft' && (
                       <Button
                         variant="outline"
@@ -304,6 +295,16 @@ export default function PurchaseOrders() {
                         Receive
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPO(po);
+                        setShowForm(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -471,16 +472,40 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
 
         if (deleteError) throw deleteError;
       } else {
-        // Create new PO
+        // Create new PO with formatted PO number
+        const { data: lastPO, error: lastPOError } = await supabase
+          .from('purchase_orders')
+          .select('po_number')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (lastPOError) throw lastPOError;
+        
+        // Generate PO number (format: PO/YYYY/XXXX)
+        const year = new Date().getFullYear();
+        let sequence = 1;
+        
+        if (lastPO && lastPO[0]?.po_number) {
+          const parts = lastPO[0].po_number.split('/');
+          if (parts.length === 3) {
+            const lastYear = parseInt(parts[1]);
+            const lastNumber = parseInt(parts[2]);
+            
+            if (lastYear === year && !isNaN(lastNumber)) {
+              sequence = lastNumber + 1;
+            }
+          }
+        }
+        
+        const poNumber = `PO/${year}/${sequence.toString().padStart(4, '0')}`;
         const { data: newPO, error: poError } = await supabase
           .from('purchase_orders')
           .insert([{
             ...poData,
-            po_number: `PO${Date.now()}`, // Generate PO number
+            po_number: poNumber,
           }])
           .select()
           .single();
-
         if (poError) throw poError;
         if (!newPO) throw new Error('Failed to create purchase order');
         poId = newPO.id;
@@ -696,9 +721,36 @@ function ReceivePOForm({ purchaseOrder, onClose, onSave }: ReceivePOFormProps) {
     setError('');
 
     try {
+      // Get last bill number to generate new one
+      const { data: lastBill, error: lastBillError } = await supabase
+        .from('bills')
+        .select('bill_number')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (lastBillError) throw lastBillError;
+
+      // Generate bill number (format: BILL/YYYY/XXXX)
+      const year = new Date().getFullYear();
+      let sequence = 1;
+
+      if (lastBill && lastBill[0]?.bill_number) {
+        const parts = lastBill[0].bill_number.split('/');
+        if (parts.length === 3) {
+          const lastYear = parseInt(parts[1]);
+          const lastNumber = parseInt(parts[2]);
+          
+          if (lastYear === year && !isNaN(lastNumber)) {
+            sequence = lastNumber + 1;
+          }
+        }
+      }
+
+      const billNumber = `BILL/${year}/${sequence.toString().padStart(4, '0')}`;
+
       // 1. Create the bill
       const billData = {
-        bill_number: `BILL${Date.now()}`,
+        bill_number: billNumber,
         po_id: purchaseOrder.id,
         bill_date: formData.bill_date,
         due_date: formData.due_date,
@@ -708,6 +760,7 @@ function ReceivePOForm({ purchaseOrder, onClose, onSave }: ReceivePOFormProps) {
         total_amount: purchaseOrder.total_amount,
         paid_amount: 0
       };
+
 
       const { data: newBill, error: billError } = await supabase
         .from('bills')
