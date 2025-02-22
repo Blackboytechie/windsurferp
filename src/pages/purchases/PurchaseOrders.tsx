@@ -13,6 +13,14 @@ interface PurchaseOrderStats {
   [key: string]: number;
 }
 
+// Add this interface after PurchaseOrderStats
+interface PurchaseOrderFilter {
+  status: string;
+  supplier: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
 export default function PurchaseOrders() {
   const [purchaseOrders, setPurchaseOrders] = useState<(PurchaseOrder & { supplier: Supplier })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,46 +33,12 @@ export default function PurchaseOrders() {
     received: 0,
     draft: 0
   });
-
-  useEffect(() => {
-    fetchPurchaseOrders();
-  }, []);
-
-  const fetchPurchaseOrders = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('purchase_orders')
-        .select(`
-          *,
-          supplier:suppliers(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setPurchaseOrders(data || []);
-    } catch (error) {
-      console.error('Error fetching purchase orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Calculate stats whenever purchase orders change
-    const newStats = purchaseOrders.reduce<PurchaseOrderStats>((acc, po) => {
-      acc.total += po.total_amount || 0;
-      acc[po.status] = (acc[po.status] || 0) + 1;
-      return acc;
-    }, {
-      total: 0,
-      pending: 0,
-      received: 0,
-      draft: 0
-    });
-    setStats(newStats);
-  }, [purchaseOrders]);
-
+  const [filter, setFilter] = useState<PurchaseOrderFilter>({
+    status: '',
+    supplier: '',
+    dateFrom: '',
+    dateTo: ''
+  });
   const getStatusBadgeColor = (status: PurchaseOrder['status']) => {
     switch (status) {
       case 'draft':
@@ -80,6 +54,78 @@ export default function PurchaseOrders() {
     }
   };
 
+  // Modify fetchPurchaseOrders function
+  const fetchPurchaseOrders = async () => {
+    try {
+      setLoading(true);
+      let query = supabase
+        .from('purchase_orders')
+        .select(`
+          *,
+          supplier:suppliers(*)
+        `)
+        .order('created_at', { ascending: false });
+
+      // Apply filters
+      if (filter.status) {
+        query = query.eq('status', filter.status);
+      }
+
+      if (filter.supplier) {
+        // First get matching supplier IDs
+        const { data: supplierIds } = await supabase
+          .from('suppliers')
+          .select('id')
+          .ilike('name', `%${filter.supplier}%`);
+
+        if (supplierIds && supplierIds.length > 0) {
+          query = query.in('supplier_id', supplierIds.map(s => s.id));
+        } else {
+          // If no suppliers match, return empty result
+          setPurchaseOrders([]);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (filter.dateFrom) {
+        query = query.gte('order_date', filter.dateFrom);
+      }
+
+      if (filter.dateTo) {
+        query = query.lte('order_date', filter.dateTo);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      setPurchaseOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    // Calculate stats whenever purchase orders change
+    const newStats = purchaseOrders.reduce<PurchaseOrderStats>((acc, po) => {
+      acc.total += po.total_amount || 0;
+      acc[po.status] = (acc[po.status] || 0) + 1;
+      return acc;
+    }, {
+      total: 0,
+      pending: 0,
+      received: 0,
+      draft: 0
+    });
+    setStats(newStats);
+  }, [purchaseOrders]);
+  // Add useEffect to trigger fetch on filter change
+  useEffect(() => {
+    fetchPurchaseOrders();
+  }, [filter]);
+  
+  // Add this JSX after the Stats Cards section and before the Table/Card Section
   return (
     <div className="space-y-4">
       {/* Header Section */}
@@ -113,6 +159,56 @@ export default function PurchaseOrders() {
         <div className="bg-white rounded-lg shadow p-4 flex flex-col items-center justify-between">
           <h3 className="text-sm font-medium text-gray-500">Received Orders</h3>
           <p className="text-2xl font-semibold mt-1 text-center">{stats.received}</p>
+        </div>
+      </div>
+      {/* Filter Section */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={filter.status}
+              onChange={(e) => setFilter({ ...filter, status: e.target.value })}
+            >
+              <option value="">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="pending">Pending</option>
+              <option value="received">Received</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+            <input
+              type="text"
+              placeholder="Search supplier..."
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={filter.supplier}
+              onChange={(e) => setFilter({ ...filter, supplier: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+            <input
+              type="date"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={filter.dateFrom}
+              onChange={(e) => setFilter({ ...filter, dateFrom: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+            <input
+              type="date"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={filter.dateTo}
+              onChange={(e) => setFilter({ ...filter, dateTo: e.target.value })}
+            />
+          </div>
         </div>
       </div>
 
