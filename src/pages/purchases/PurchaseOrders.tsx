@@ -455,12 +455,14 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
     expected_delivery: new Date().toISOString().split('T')[0],
     status: 'draft',
     notes: '',
-    ...purchaseOrder,
-    ...(purchaseOrder?.order_date && {
-      order_date: new Date(purchaseOrder.order_date).toISOString().split('T')[0]
-    }),
-    ...(purchaseOrder?.expected_delivery && {
-      expected_delivery: new Date(purchaseOrder.expected_delivery).toISOString().split('T')[0]
+    ...(purchaseOrder && {
+      supplier_id: purchaseOrder.supplier_id,
+      order_date: new Date(purchaseOrder.order_date).toISOString().split('T')[0],
+      expected_delivery: new Date(purchaseOrder.expected_delivery).toISOString().split('T')[0],
+      status: purchaseOrder.status,
+      notes: purchaseOrder.notes,
+      id: purchaseOrder.id,
+      po_number: purchaseOrder.po_number
     })
   });
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -552,7 +554,7 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
 
       if (purchaseOrder) {
         // Update existing PO
-        const { supplier, created_at, updated_at, ...updateData } = poData;
+        const { created_at, updated_at, ...updateData } = poData;
         const { error: poError } = await supabase
           .from('purchase_orders')
           .update(updateData)
