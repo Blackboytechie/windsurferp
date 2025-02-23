@@ -162,37 +162,40 @@ export default function PurchaseOrders() {
 
   const handleDownloadPDF = async (po: PurchaseOrder & { supplier: Supplier }) => {
     try {
-    const { data: items } = await supabase
-      .from('purchase_order_items')
-      .select('*, product:products(*)')
-      .eq('po_id', po.id);
+      const { data: items } = await supabase
+        .from('purchase_order_items')
+        .select('*, product:products(*)')
+        .eq('po_id', po.id);
 
-    const element = document.createElement('div');
-    document.body.appendChild(element);
-    const root = createRoot(element);
-    root.render(<PurchaseOrderTemplate purchaseOrder={po} items={items || []} />);
-    // Add delay to ensure component is rendered
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const canvas = await html2canvas(element,{
-      scale: 2, // Higher resolution for better quality
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      windowWidth: element.scrollWidth,
-      windowHeight: element.scrollHeight
-    }as any);
-    const imgData = canvas.toDataURL('image/png',1.0);
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const element = document.createElement('div');
+      element.style.width = '210mm';
+      element.style.backgroundColor = 'white';
+      document.body.appendChild(element);
+      document.body.appendChild(element);
+      const root = createRoot(element);
+      root.render(<PurchaseOrderTemplate purchaseOrder={po} items={items || []} />);
+      // Add delay to ensure component is rendered
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const canvas = await html2canvas(element, {
+        scale: 2, // Higher resolution for better quality
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
+      } as any);
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`${po.po_number}.pdf`);
-    root.unmount(); // Cleanup React root
-    document.body.removeChild(element);
-  } catch (error) {
-    console.error('Error generating PDF:', error);
-  }
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${po.po_number}.pdf`);
+      root.unmount(); // Cleanup React root
+      document.body.removeChild(element);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
   };
 
   return (
