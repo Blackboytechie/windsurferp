@@ -455,12 +455,14 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
     expected_delivery: new Date().toISOString().split('T')[0],
     status: 'draft',
     notes: '',
-    ...purchaseOrder,
-    ...(purchaseOrder?.order_date && {
-      order_date: new Date(purchaseOrder.order_date).toISOString().split('T')[0]
-    }),
-    ...(purchaseOrder?.expected_delivery && {
-      expected_delivery: new Date(purchaseOrder.expected_delivery).toISOString().split('T')[0]
+    ...(purchaseOrder && {
+      supplier_id: purchaseOrder.supplier_id,
+      order_date: new Date(purchaseOrder.order_date).toISOString().split('T')[0],
+      expected_delivery: new Date(purchaseOrder.expected_delivery).toISOString().split('T')[0],
+      status: purchaseOrder.status,
+      notes: purchaseOrder.notes,
+      id: purchaseOrder.id,
+      po_number: purchaseOrder.po_number
     })
   });
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -552,9 +554,10 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
 
       if (purchaseOrder) {
         // Update existing PO
+        const { created_at, updated_at, ...updateData } = poData;
         const { error: poError } = await supabase
           .from('purchase_orders')
-          .update(poData)
+          .update(updateData)
           .eq('id', purchaseOrder.id);
 
         if (poError) throw poError;
@@ -640,9 +643,9 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[95vh] overflow-y-auto">
+        <div className="p-4 sm:p-6">
           <h2 className="text-xl font-bold mb-4">
             {purchaseOrder ? 'Edit Purchase Order' : 'Create Purchase Order'}
           </h2>
@@ -701,10 +704,10 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
 
             {/* Products Section */}
             <div className="mt-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                 <h3 className="text-lg font-medium">Products</h3>
                 <select
-                  className="border rounded-md px-3 py-2"
+                  className="w-full sm:w-auto border rounded-md px-3 py-2"
                   value=""
                   onChange={(e) => {
                     if (e.target.value) {
@@ -723,7 +726,51 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
                     ))}
                 </select>
               </div>
-              <table className="min-w-full divide-y divide-gray-200">
+              {/* Mobile Product Cards */}
+              <div className="block sm:hidden">
+                {selectedProducts.map((product, index) => (
+                  <div key={product.id} className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="font-medium">{product.name}</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProduct(product.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Quantity:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          className="w-24 border rounded px-2 py-1"
+                          value={product.quantity}
+                          onChange={(e) => updateProductQuantity(index, Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Unit Price:</span>
+                        <span>₹{product.purchase_price}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">GST:</span>
+                        <span>{product.gst_rate}%</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium">
+                        <span className="text-sm text-gray-600">Total:</span>
+                        <span>₹{(product.quantity * product.purchase_price * (1 + product.gst_rate / 100)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Product</th>
@@ -769,23 +816,26 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {error && (
-              <div className="text-red-500 text-sm">{error}</div>
+              <div className="text-red-500 text-sm mt-2">{error}</div>
             )}
 
-            <div className="flex justify-end space-x-2">
+<div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-2 mt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={loading || selectedProducts.length === 0}
+                className="w-full sm:w-auto"
               >
                 {loading ? 'Saving...' : 'Save'}
               </Button>
