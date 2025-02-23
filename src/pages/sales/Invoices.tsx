@@ -107,7 +107,7 @@ export default function Invoices() {
         scale: 2,
         logging: false,
         useCORS: true,
-      });
+      }as any);
 
       const imgWidth = 208; // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
