@@ -1,9 +1,17 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { supabase } from '@/lib/supabase';
 import { PurchaseOrder, Supplier } from '@/types/purchase';
 import { Product } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { TableContainer } from '@/components/ui/table-container';
+import { PurchaseOrderTemplate } from '@/components/purchases/PurchaseOrderTemplate';
+import { useReactToPrint } from 'react-to-print';
+import html2canvas from 'html2canvas';  //
+import jsPDF from 'jspdf';
+import { Send, FileCheck, Edit, Printer, Download } from 'lucide-react';
+
 
 interface PurchaseOrderStats {
   total: number;
@@ -124,8 +132,69 @@ export default function PurchaseOrders() {
   useEffect(() => {
     fetchPurchaseOrders();
   }, [filter]);
-  
-  // Add this JSX after the Stats Cards section and before the Table/Card Section
+
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [printData, setPrintData] = useState<{ po: PurchaseOrder & { supplier: Supplier }, items: any[] } | null>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef,
+    // onBeforeGetContent: async () => {
+    //   if (!printData?.po) return;
+    //   document.title = `Purchase Order - ${printData.po.po_number}`;
+    // },
+    // onAfterPrint: () => {
+    //   setPrintData(null);
+    //   document.title = 'Purchase Orders';
+    // },
+  });
+
+  const initiatePrint = async (po: PurchaseOrder & { supplier: Supplier }) => {
+    const { data: items } = await supabase
+      .from('purchase_order_items')
+      .select('*, product:products(*)')
+      .eq('po_id', po.id);
+
+    setPrintData({ po, items: items || [] });
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
+  const handleDownloadPDF = async (po: PurchaseOrder & { supplier: Supplier }) => {
+    try {
+    const { data: items } = await supabase
+      .from('purchase_order_items')
+      .select('*, product:products(*)')
+      .eq('po_id', po.id);
+
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    const root = createRoot(element);
+    root.render(<PurchaseOrderTemplate purchaseOrder={po} items={items || []} />);
+    // Add delay to ensure component is rendered
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const canvas = await html2canvas(element,{
+      scale: 2, // Higher resolution for better quality
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight
+    }as any);
+    const imgData = canvas.toDataURL('image/png',1.0);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`${po.po_number}.pdf`);
+    root.unmount(); // Cleanup React root
+    document.body.removeChild(element);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+  }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header Section */}
@@ -178,7 +247,7 @@ export default function PurchaseOrders() {
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
             <input
@@ -280,7 +349,7 @@ export default function PurchaseOrders() {
                                     .from('purchase_orders')
                                     .update({ status: 'pending' })
                                     .eq('id', po.id);
-                                  
+
                                   if (error) throw error;
                                   fetchPurchaseOrders();
                                 } catch (error) {
@@ -312,6 +381,20 @@ export default function PurchaseOrders() {
                             }}
                           >
                             Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => initiatePrint(po)}
+                          >
+                            Print
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadPDF(po)}
+                          >
+                            Download
                           </Button>
                         </div>
                       </td>
@@ -356,19 +439,19 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex justify-end items-center gap-2">
-                    
+                  <div className="mt-2 flex flex-wrap justify-end items-center gap-2">
                     {po.status === 'draft' && (
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
+                        title="Submit"
                         onClick={async () => {
                           try {
                             const { error } = await supabase
                               .from('purchase_orders')
                               .update({ status: 'pending' })
                               .eq('id', po.id);
-                            
+
                             if (error) throw error;
                             fetchPurchaseOrders();
                           } catch (error) {
@@ -376,30 +459,48 @@ export default function PurchaseOrders() {
                           }
                         }}
                       >
-                        Submit
+                        <Send className="h-4 w-4" />
                       </Button>
                     )}
                     {po.status === 'pending' && (
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
+                        title="Receive"
                         onClick={() => {
                           setSelectedPO(po);
                           setShowReceiveForm(true);
                         }}
                       >
-                        Receive
+                        <FileCheck className="h-4 w-4" />
                       </Button>
                     )}
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      title="Edit"
                       onClick={() => {
                         setSelectedPO(po);
                         setShowForm(true);
                       }}
                     >
-                      Edit
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Print"
+                      onClick={() => initiatePrint(po)}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Download"
+                      onClick={() => handleDownloadPDF(po)}
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -423,6 +524,24 @@ export default function PurchaseOrders() {
           }}
         />
       )}
+
+      {/* Print Template */}
+      <div style={{ display: 'none' }}>
+        {printData && (
+          <PurchaseOrderTemplate
+            ref={contentRef}
+            purchaseOrder={printData.po}
+            items={printData.items}
+            companyDetails={{
+              name: 'Your Company Name',
+              address: '123 Business Street\nCity, State, ZIP',
+              phone: '(123) 456-7890',
+              email: 'contact@company.com',
+              gst: 'GSTIN12345',
+            }}
+          />
+        )}
+      </div>
 
       {showReceiveForm && selectedPO && (
         <ReceivePOForm
@@ -491,7 +610,7 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
 
   const fetchPurchaseOrderItems = async () => {
     if (!purchaseOrder?.id) return;
-    
+
     const { data: items, error } = await supabase
       .from('purchase_order_items')
       .select('*, product:products(*)')
@@ -577,25 +696,25 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
           .select('po_number')
           .order('created_at', { ascending: false })
           .limit(1);
-        
+
         if (lastPOError) throw lastPOError;
-        
+
         // Generate PO number (format: PO/YYYY/XXXX)
         const year = new Date().getFullYear();
         let sequence = 1;
-        
+
         if (lastPO && lastPO[0]?.po_number) {
           const parts = lastPO[0].po_number.split('/');
           if (parts.length === 3) {
             const lastYear = parseInt(parts[1]);
             const lastNumber = parseInt(parts[2]);
-            
+
             if (lastYear === year && !isNaN(lastNumber)) {
               sequence = lastNumber + 1;
             }
           }
         }
-        
+
         const poNumber = `PO/${year}/${sequence.toString().padStart(4, '0')}`;
         const { data: newPO, error: poError } = await supabase
           .from('purchase_orders')
@@ -771,51 +890,51 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
               {/* Desktop Table View */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2">Product</th>
-                    <th className="px-4 py-2">Quantity</th>
-                    <th className="px-4 py-2">Unit Price</th>
-                    <th className="px-4 py-2">GST</th>
-                    <th className="px-4 py-2">Total</th>
-                    <th className="px-4 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedProducts.map((product, index) => (
-                    <tr key={product.id}>
-                      <td className="px-4 py-2">{product.name}</td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          min="1"
-                          className="w-20 border rounded px-2 py-1"
-                          value={product.quantity}
-                          onChange={(e) => {
-                            updateProductQuantity(index, Number(e.target.value));
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2">₹{product.purchase_price}</td>
-                      <td className="px-4 py-2">{product.gst_rate}%</td>
-                      <td className="px-4 py-2">
-                        ₹{(product.quantity * product.purchase_price * (1 + product.gst_rate / 100)).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            removeProduct(product.id);
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </td>
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2">Product</th>
+                      <th className="px-4 py-2">Quantity</th>
+                      <th className="px-4 py-2">Unit Price</th>
+                      <th className="px-4 py-2">GST</th>
+                      <th className="px-4 py-2">Total</th>
+                      <th className="px-4 py-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {selectedProducts.map((product, index) => (
+                      <tr key={product.id}>
+                        <td className="px-4 py-2">{product.name}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="1"
+                            className="w-20 border rounded px-2 py-1"
+                            value={product.quantity}
+                            onChange={(e) => {
+                              updateProductQuantity(index, Number(e.target.value));
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2">₹{product.purchase_price}</td>
+                        <td className="px-4 py-2">{product.gst_rate}%</td>
+                        <td className="px-4 py-2">
+                          ₹{(product.quantity * product.purchase_price * (1 + product.gst_rate / 100)).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              removeProduct(product.id);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -823,7 +942,7 @@ function PurchaseOrderForm({ purchaseOrder, onClose, onSave }: PurchaseOrderForm
               <div className="text-red-500 text-sm mt-2">{error}</div>
             )}
 
-<div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-2 mt-4">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-2 mt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -885,7 +1004,7 @@ function ReceivePOForm({ purchaseOrder, onClose, onSave }: ReceivePOFormProps) {
         if (parts.length === 3) {
           const lastYear = parseInt(parts[1]);
           const lastNumber = parseInt(parts[2]);
-          
+
           if (lastYear === year && !isNaN(lastNumber)) {
             sequence = lastNumber + 1;
           }
@@ -971,11 +1090,11 @@ function ReceivePOForm({ purchaseOrder, onClose, onSave }: ReceivePOFormProps) {
 
           // Update both stock quantity and level
           const newStockQuantity = (currentProduct?.stock_quantity || 0) + item.quantity;
-          
+
           const { error: stockUpdateError } = await supabase
             .from('products')
-            .update({ 
-              stock_quantity: newStockQuantity 
+            .update({
+              stock_quantity: newStockQuantity
             })
             .eq('id', item.product_id);
 
@@ -1017,7 +1136,7 @@ function ReceivePOForm({ purchaseOrder, onClose, onSave }: ReceivePOFormProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-lg w-full p-6">
         <h2 className="text-xl font-bold mb-4">Receive Purchase Order</h2>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Bill Date</label>
