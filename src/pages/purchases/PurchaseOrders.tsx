@@ -138,26 +138,47 @@ export default function PurchaseOrders() {
 
   const handlePrint = useReactToPrint({
     contentRef,
-    // onBeforeGetContent: async () => {
-    //   if (!printData?.po) return;
-    //   document.title = `Purchase Order - ${printData.po.po_number}`;
-    // },
-    // onAfterPrint: () => {
-    //   setPrintData(null);
-    //   document.title = 'Purchase Orders';
-    // },
+    documentTitle: printData ? `PO-${printData.po.po_number}` : 'Purchase Order',
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .print-page {
+          page-break-after: always;
+          min-height: 297mm;
+          width: 210mm;
+          position: relative;
+        }
+        .print-page:last-child {
+          page-break-after: auto;
+        }
+      }
+    `,
+    onAfterPrint: () => {
+      setPrintData(null);
+    }
   });
 
   const initiatePrint = async (po: PurchaseOrder & { supplier: Supplier }) => {
-    const { data: items } = await supabase
-      .from('purchase_order_items')
-      .select('*, product:products(*)')
-      .eq('po_id', po.id);
+    try {
+      const { data: items } = await supabase
+        .from('purchase_order_items')
+        .select('*, product:products(*)')
+        .eq('po_id', po.id);
 
-    setPrintData({ po, items: items || [] });
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
+      setPrintData({ po, items: items || [] });
+      setTimeout(() => {
+        handlePrint();
+      }, 100);
+    } catch (error) {
+      console.error('Error fetching items for print:', error);
+    }
   };
 
   const handleDownloadPDF = async (po: PurchaseOrder & { supplier: Supplier }) => {
@@ -167,32 +188,67 @@ export default function PurchaseOrders() {
         .select('*, product:products(*)')
         .eq('po_id', po.id);
 
-      const element = document.createElement('div');
-      element.style.width = '210mm';
-      element.style.backgroundColor = 'white';
-      document.body.appendChild(element);
-      document.body.appendChild(element);
-      const root = createRoot(element);
-      root.render(<PurchaseOrderTemplate purchaseOrder={po} items={items || []} />);
-      // Add delay to ensure component is rendered
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const canvas = await html2canvas(element, {
-        scale: 2, // Higher resolution for better quality
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
-      } as any);
-      const imgData = canvas.toDataURL('image/png', 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      // Calculate total pages
+      const ITEMS_PER_PAGE = 10;
+      const totalPages = Math.ceil((items?.length || 0) / ITEMS_PER_PAGE);
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+
+      // Create a container for all pages
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
+
+      // Render each page and add to PDF
+      for (let page = 1; page <= totalPages; page++) {
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'print-page';
+        container.appendChild(pageDiv);
+
+        const root = createRoot(pageDiv);
+        root.render(
+          <PurchaseOrderTemplate
+            purchaseOrder={po}
+            items={items || []}
+            companyDetails={{
+              name: 'Your Company Name',
+              address: '123 Business Street\nCity, State, ZIP',
+              phone: '(123) 456-7890',
+              email: 'contact@company.com',
+              gst: 'GSTIN12345',
+            }}
+            pageInfo={{
+              currentPage: page,
+              totalPages,
+              isLastPage: page === totalPages
+            }}
+          />
+        );
+
+        // Wait for rendering
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const canvas = await html2canvas(pageDiv, {
+          useCORS: true,
+          allowTaint: true,
+        });
+
+        const imgData = canvas.toDataURL('image/png', 1.0);
+
+        if (page > 1) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+
+        // Clean up this page
+        root.unmount();
+        pageDiv.remove();
+      }
+
       pdf.save(`${po.po_number}.pdf`);
-      root.unmount(); // Cleanup React root
-      document.body.removeChild(element);
+      document.body.removeChild(container);
     } catch (error) {
       console.error('Error generating PDF:', error);
     }
@@ -531,18 +587,38 @@ export default function PurchaseOrders() {
       {/* Print Template */}
       <div style={{ display: 'none' }}>
         {printData && (
-          <PurchaseOrderTemplate
-            ref={contentRef}
-            purchaseOrder={printData.po}
-            items={printData.items}
-            companyDetails={{
-              name: 'Your Company Name',
-              address: '123 Business Street\nCity, State, ZIP',
-              phone: '(123) 456-7890',
-              email: 'contact@company.com',
-              gst: 'GSTIN12345',
-            }}
-          />
+          <div ref={contentRef}>
+            {(() => {
+              // Calculate total pages
+              const ITEMS_PER_PAGE = 10;
+              const totalPages = Math.ceil(printData.items.length / ITEMS_PER_PAGE);
+
+              // Create an array of pages
+              return Array.from({ length: totalPages }).map((_, index) => {
+                const page = index + 1;
+                return (
+                  <div key={page} className="print-page">
+                    <PurchaseOrderTemplate
+                      purchaseOrder={printData.po}
+                      items={printData.items}
+                      companyDetails={{
+                        name: 'Your Company Name',
+                        address: '123 Business Street\nCity, State, ZIP',
+                        phone: '(123) 456-7890',
+                        email: 'contact@company.com',
+                        gst: 'GSTIN12345',
+                      }}
+                      pageInfo={{
+                        currentPage: page,
+                        totalPages,
+                        isLastPage: page === totalPages
+                      }}
+                    />
+                  </div>
+                );
+              });
+            })()}
+          </div>
         )}
       </div>
 
