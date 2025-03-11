@@ -21,6 +21,8 @@ export interface PurchaseOrder {
   gst_amount: number;
   total_amount: number;
   notes: string;
+  vehicle_no?: string;
+  place_of_supply?: string;
   created_at: string;
   updated_at: string;
 }
