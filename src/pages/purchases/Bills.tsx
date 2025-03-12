@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Payment, PurchaseOrder, Supplier } from '@/types/purchase';
 import { Button } from '@/components/ui/button';
+import { useReactToPrint } from 'react-to-print';
+import { createRoot } from 'react-dom/client';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { Eye, CreditCard, Printer, Download } from 'lucide-react';
 
 interface Bill {
   id: string;
@@ -30,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { BillTemplate } from '@/components/purchases/BillTemplate';
 
 export default function Bills() {
   const [bills, setBills] = useState<(Bill & { purchase_order: PurchaseOrder & { supplier: Supplier } })[]>([]);
@@ -38,6 +44,15 @@ export default function Bills() {
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [showBillDetails, setShowBillDetails] = useState(false);
   const [billItems, setBillItems] = useState<{ name: string; quantity: number }[]>([]);
+  
+  // Add these new state variables for printing
+  const contentRef = useRef<HTMLDivElement>(null);
+  // Update the state type
+  const [printData, setPrintData] = useState<{ 
+    bill: Bill & { purchase_order: PurchaseOrder & { supplier: Supplier } }, 
+    items: any[],
+    totalPages?: number 
+  } | null>(null);
 
   useEffect(() => {
     fetchBills();
@@ -98,46 +113,145 @@ export default function Bills() {
         return 'bg-gray-100 text-gray-800';
     }
   };
+  // ... existing functions like fetchBills, fetchBillItems, etc.
 
+  // Add these new functions for printing and downloading
+  const handlePrint = useReactToPrint({
+    contentRef,
+    documentTitle: printData ? `Bill-${printData.bill.bill_number}` : 'Bill',
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `,
+    onAfterPrint: () => {
+      setPrintData(null);
+    }
+  });
+
+  const initiatePrint = async (bill: Bill & { purchase_order: PurchaseOrder & { supplier: Supplier } }) => {
+    try {
+      const { data: items } = await supabase
+        .from('bill_items')
+        .select('*, product:products(*)')
+        .eq('bill_id', bill.id);
+
+      if (!items || items.length === 0) {
+        console.error('No items found for this bill');
+        return;
+      }
+  
+      // Calculate total pages
+      const ITEMS_PER_PAGE = 10;
+      const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+  
+      setPrintData({ 
+        bill, 
+        items: items || [],
+        totalPages
+      });
+      
+      setTimeout(() => {
+        handlePrint();
+      }, 100);
+    } catch (error) {
+      console.error('Error fetching items for print:', error);
+    }
+  };
+
+  const handleDownloadPDF = async (bill: Bill & { purchase_order: PurchaseOrder & { supplier: Supplier } }) => {
+    try {
+      const { data: items } = await supabase
+        .from('bill_items')
+        .select('*, product:products(*)')
+        .eq('bill_id', bill.id);
+
+      if (!items || items.length === 0) {
+        console.error('No items found for this bill');
+        return;
+      }
+
+      // Calculate total pages
+      const ITEMS_PER_PAGE = 10;
+      const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Generate each page
+      for (let page = 1; page <= totalPages; page++) {
+        // Create a container for the current page
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+        
+        const root = createRoot(container);
+        root.render(
+          <BillTemplate 
+            bill={bill} 
+            items={items} 
+            companyDetails={{
+              name: 'Your Company Name',
+              address: '123 Business Street\nCity, State, ZIP',
+              phone: '(123) 456-7890',
+              email: 'contact@company.com',
+              gst: 'GSTIN12345',
+            }}
+            pageInfo={{
+              currentPage: page,
+              totalPages: totalPages,
+              isLastPage: page === totalPages
+            }}
+          />
+        );
+        
+        // Wait for rendering
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const canvas = await html2canvas(container, {
+          // width: container.scrollWidth,
+          // height: container.scrollHeight,
+          // scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          // backgroundColor: '#ffffff',
+          // logging: false,
+        });
+        
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        
+        // Add page to PDF
+        if (page > 1) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+        
+        // Clean up
+        root.unmount();
+        document.body.removeChild(container);
+      }
+      
+      pdf.save(`Bill-${bill.bill_number}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
   const renderMobileCard = (bill: Bill & { purchase_order: PurchaseOrder & { supplier: Supplier } }) => (
     <div key={bill.id} className="bg-white rounded-lg shadow-sm p-4 space-y-3">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-medium">{bill.bill_number}</h3>
-          <p className="text-sm text-gray-600">{bill.purchase_order.supplier.name}</p>
-        </div>
-        <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeColor(bill.status)}`}>
-          {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
-        </span>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div>
-          <p className="text-gray-600">Bill Date</p>
-          <p>{new Date(bill.bill_date).toLocaleDateString()}</p>
-        </div>
-        <div>
-          <p className="text-gray-600">Due Date</p>
-          <p>{new Date(bill.due_date).toLocaleDateString()}</p>
-        </div>
-      </div>
-
-      <div className="border-t pt-2">
-        <div className="flex justify-between items-baseline">
-          <div>
-            <p className="text-gray-600 text-sm">Total Amount</p>
-            <p className="font-medium">₹{bill.total_amount.toFixed(2)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-gray-600 text-sm">Paid Amount</p>
-            <p className="font-medium">₹{bill.paid_amount.toFixed(2)}</p>
-          </div>
-        </div>
-      </div>
+      {/* ... existing card content ... */}
 
       <div className="flex gap-2 pt-2">
         <Button
           variant="ghost"
+          size="sm"
           className="flex-1"
           onClick={() => {
             setSelectedBill(bill);
@@ -145,18 +259,39 @@ export default function Bills() {
             fetchBillItems(bill.id);
           }}
         >
+          <Eye className="h-4 w-4 mr-1" />
           View
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => initiatePrint(bill)}
+        >
+          <Printer className="h-4 w-4 mr-1" />
+          Print
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => handleDownloadPDF(bill)}
+        >
+          <Download className="h-4 w-4 mr-1" />
+          Download
         </Button>
         {bill.status !== 'paid' && (
           <Button
             variant="outline"
+            size="sm"
             className="flex-1"
             onClick={() => {
               setSelectedBill(bill);
               setShowPaymentForm(true);
             }}
           >
-            Add Payment
+            <CreditCard className="h-4 w-4 mr-1" />
+            Pay
           </Button>
         )}
       </div>
@@ -235,30 +370,50 @@ export default function Bills() {
                           Paid: ₹{bill.paid_amount.toFixed(2)}
                         </div>
                       </td>
-                      <td className="">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedBill(bill);
-                            setShowBillDetails(true);
-                            fetchBillItems(bill.id);
-                          }}
-                        >
-                          View
-                        </Button>
-                        {bill.status !== 'paid' && (
+                      <td className="px-3 py-4">
+                        <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => {
                               setSelectedBill(bill);
-                              setShowPaymentForm(true);
+                              setShowBillDetails(true);
+                              fetchBillItems(bill.id);
                             }}
                           >
-                            Pay
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
                           </Button>
-                        )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => initiatePrint(bill)}
+                          >
+                            <Printer className="h-4 w-4 mr-1" />
+                            Print
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadPDF(bill)}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                          {bill.status !== 'paid' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedBill(bill);
+                                setShowPaymentForm(true);
+                              }}
+                            >
+                              <CreditCard className="h-4 w-4 mr-1" />
+                              Pay
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -268,6 +423,33 @@ export default function Bills() {
           </div>
         </>
       )}
+     {/* Add the print template div at the end of the component */}
+<div style={{ display: 'none' }}>
+  {printData && (
+    <div ref={contentRef} className="print-container">
+      {Array.from({ length: printData.totalPages || 1 }).map((_, index) => (
+        <div key={index} className="print-page">
+          <BillTemplate
+            bill={printData.bill}
+            items={printData.items}
+            companyDetails={{
+              name: 'Your Company Name',
+              address: '123 Business Street\nCity, State, ZIP',
+              phone: '(123) 456-7890',
+              email: 'contact@company.com',
+              gst: 'GSTIN12345',
+            }}
+            pageInfo={{
+              currentPage: index + 1,
+              totalPages: printData.totalPages || 1,
+              isLastPage: index + 1 === (printData.totalPages || 1)
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
       {showPaymentForm && selectedBill && (
         <PaymentForm
@@ -355,6 +537,7 @@ export default function Bills() {
           )}
         </DialogContent>
       </Dialog>
+  
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Product } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { generateInvoice } from '@/utils/invoiceUtils';
-import { exportData} from '@/utils/exportUtils';
+import { exportData } from '@/utils/exportUtils';
 import { useToast } from "@/components/ui/use-toast";
 import { TableContainer } from '@/components/ui/table-container';
 import { SalesOrderStatus } from '@/types/sales';
@@ -88,7 +88,7 @@ export default function SalesOrders() {
 
       if (error) throw error;
       if (!data) return;
-          
+
       // Format data for export
       const formattedData = data.map(order => ({
         'SO Number': order.so_number,
@@ -98,7 +98,7 @@ export default function SalesOrders() {
         'Customer GST': order.customer.gst_number,
         'Customer Phone': order.customer.phone,
         'Customer Email': order.customer.email,
-        'Items': order.items.map((item: SalesOrderItem) => 
+        'Items': order.items.map((item: SalesOrderItem) =>
           `${item.product?.name || 'Unknown Product'} (${item.quantity} x ₹${item.unit_price})`
         ).join('\n'),
         'Subtotal': order.subtotal,
@@ -144,7 +144,7 @@ export default function SalesOrders() {
 
         // Validate stock levels
         const stockValidation = await validateStock(orderWithItems);
-        
+
         if (!stockValidation.valid) {
           toast({
             title: "Insufficient Stock",
@@ -216,7 +216,7 @@ export default function SalesOrders() {
           .select('stock_quantity')
           .eq('id', item.product_id)
           .single();
-        
+
         return {
           ...item,
           product: {
@@ -234,7 +234,7 @@ export default function SalesOrders() {
 
       // Validate stock levels before generating invoice
       const stockValidation = await validateStock(orderWithFreshStock);
-      
+
       if (!stockValidation.valid) {
         toast({
           title: "Insufficient Stock",
@@ -257,7 +257,7 @@ export default function SalesOrders() {
 
       // Generate invoice with stock updates
       const { invoice, error } = await generateInvoice(orderWithFreshStock);
-      
+
       if (error) throw error;
 
       toast({
@@ -483,18 +483,20 @@ export default function SalesOrders() {
       </div>
 
       {showForm && (
-        <SalesOrderForm
-          salesOrder={selectedSO}
-          onClose={() => {
-            setShowForm(false);
-            setSelectedSO(null);
-          }}
-          onSave={() => {
-            fetchSalesOrders();
-            setShowForm(false);
-            setSelectedSO(null);
-          }}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[1000]">
+          <SalesOrderForm
+            salesOrder={selectedSO}
+            onClose={() => {
+              setShowForm(false);
+              setSelectedSO(null);
+            }}
+            onSave={() => {
+              fetchSalesOrders();
+              setShowForm(false);
+              setSelectedSO(null);
+            }}
+          />
+        </div>
       )}
     </div>
   );
@@ -507,7 +509,7 @@ interface SalesOrderFormProps {
 }
 
 function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
-  const navigate = useNavigate();  
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<SalesOrder>({
     id: salesOrder?.id || '',
     order_number: salesOrder?.order_number || '',
@@ -527,8 +529,8 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
     updated_at: salesOrder?.updated_at || new Date().toISOString(),
     items: salesOrder?.items || []
   });
-  console.log("formdata :",formData);
-  
+  console.log("formdata :", formData);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<(SalesOrderItem & { product: Product })[]>([]);
@@ -555,7 +557,7 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
 
   const fetchItems = async () => {
     if (!salesOrder) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('sales_order_items')
@@ -589,7 +591,7 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
       });
 
       setItems(initializedItems);
-      
+
       // Calculate and update form totals
       const subtotal = initializedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
       const taxAmount = initializedItems.reduce((sum, item) => sum + item.tax_amount, 0);
@@ -610,13 +612,13 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
 
   const updateItem = (index: number, updates: Partial<SalesOrderItem>) => {
     const updatedItems = [...items];
-const currentItem = updatedItems[index];
-updatedItems[index] = {
-  ...currentItem,
-  ...updates,
-  product: currentItem.product // Preserve the existing product object with all its properties
-} as SalesOrderItem & { product: Product };
-    
+    const currentItem = updatedItems[index];
+    updatedItems[index] = {
+      ...currentItem,
+      ...updates,
+      product: currentItem.product // Preserve the existing product object with all its properties
+    } as SalesOrderItem & { product: Product };
+
     // Calculate item totals
     const item = updatedItems[index];
     const itemSubtotal = item.quantity * item.unit_price;
@@ -661,8 +663,21 @@ updatedItems[index] = {
     setError('');
 
     try {
+      // Validate required fields
+      if (!formData.customer_id) {
+        throw new Error('Please select a customer');
+      }
+
+      if (items.length === 0) {
+        throw new Error('Please add at least one item to the order');
+      }
+
+      const { items: _, so_number: __, id, ...orderDataWithoutInvalidFields } = formData;
+
       const orderData = {
-        ...formData,
+        ...orderDataWithoutInvalidFields,
+        // Only include id when updating an existing order
+        ...(salesOrder ? { id: formData.id } : {}),
         order_date: new Date(formData.order_date!).toISOString(),
         delivery_date: formData.delivery_date ? new Date(formData.delivery_date).toISOString() : null,
         customer_id: formData.customer_id,
@@ -675,19 +690,35 @@ updatedItems[index] = {
         total_amount: formData.total_amount,
         notes: formData.notes || null,
       };
+      console.log("order data :", orderData);
 
       let orderId: string;
 
+      // Use upsert pattern for better performance
       if (salesOrder) {
         // Update existing order
         const { error: orderError } = await supabase
           .from('sales_orders')
           .update(orderData)
-          .eq('id', salesOrder.id);
+          .eq('id', salesOrder.id)
+          .select()
+          .single();
 
         if (orderError) throw orderError;
         orderId = salesOrder.id;
       } else {
+        // Generate order number if creating new order
+        if (!orderData.order_number) {
+          const { count, error: countError } = await supabase
+            .from('sales_orders')
+            .select('*', { count: 'exact', head: true });
+
+          if (countError) throw countError;
+
+          const nextNumber = (count || 0) + 1;
+          const year = new Date().getFullYear().toString().substring(2);
+          orderData.order_number = `SO${year}-${nextNumber.toString().padStart(5, '0')}`;
+        }
         // Create new order
         const { data: newOrder, error: orderError } = await supabase
           .from('sales_orders')
@@ -698,66 +729,48 @@ updatedItems[index] = {
         if (orderError) throw orderError;
         orderId = newOrder.id;
       }
+      // Use a transaction-like approach for items
+      const itemPromises = [];
 
       // Handle items
       if (salesOrder) {
-        // Delete removed items
-        const existingItemIds = items
-          .filter(item => item.id)
-          .map(item => item.id);
-
-        if (existingItemIds.length === 0) {
-          // If no existing items, delete all items for this order
-          const { error: deleteError } = await supabase
-            .from('sales_order_items')
-            .delete()
-            .eq('order_id', orderId);
-
-          if (deleteError) throw deleteError;
-        } else {
-          // Delete items not in the current list
-          const { error: deleteError } = await supabase
+        itemPromises.push(
+          supabase
             .from('sales_order_items')
             .delete()
             .eq('order_id', orderId)
-            .not('id', 'in', `(${existingItemIds.join(',')})`);
-
-          if (deleteError) throw deleteError;
-        }
+        );
       }
 
-      // Update or insert items
-      for (const item of items) {
-        const itemData = {
-          order_id: orderId,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_rate: item.tax_rate || 0,
-          tax_amount: (item.quantity * item.unit_price * (item.tax_rate || 0)) / 100,
-          discount_rate: item.discount_rate || 0,
-          discount_amount: (item.quantity * item.unit_price * (item.discount_rate || 0)) / 100,
-          total_amount: item.quantity * item.unit_price * (1 + (item.tax_rate || 0) / 100 - (item.discount_rate || 0) / 100),
-        };
+      // Prepare all items for insertion
+      const itemsToInsert = items.map(item => ({
+        order_id: orderId,
+        product_id: item.product_id,
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price),
+        tax_rate: Number(item.tax_rate) || 0,
+        tax_amount: Number((item.quantity * item.unit_price * (item.tax_rate || 0)) / 100),
+        discount_rate: Number(item.discount_rate) || 0,
+        discount_amount: Number((item.quantity * item.unit_price * (item.discount_rate || 0)) / 100),
+        total_amount: Number(item.quantity * item.unit_price * (1 + (item.tax_rate || 0) / 100 - (item.discount_rate || 0) / 100)),
+        paid_amount: 0, // Initialize paid amount to 0 for new items
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      // Insert all items at once
+      itemPromises.push(
+        supabase
+          .from('sales_order_items')
+          .insert(itemsToInsert)
+      );
 
-        if (item.id) {
-          // Update existing item
-          const { error: itemError } = await supabase
-            .from('sales_order_items')
-            .update(itemData)
-            .eq('id', item.id);
+      // Execute all promises
+      const results = await Promise.all(itemPromises);
 
-          if (itemError) throw itemError;
-        } else {
-          // Insert new item
-          const { error: itemError } = await supabase
-            .from('sales_order_items')
-            .insert([itemData]);
-
-          if (itemError) throw itemError;
-        }
+      // Check for errors in any of the operations
+      for (const result of results) {
+        if (result.error) throw result.error;
       }
-
       onSave();
 
       // Generate invoice if status is confirmed
@@ -780,7 +793,7 @@ updatedItems[index] = {
       // No navigation if just saving a draft order
     } catch (error: any) {
       console.error('Error saving sales order:', error);
-      setError(error.message);
+      setError(error.message || 'An error occurred while saving the sales order');
     } finally {
       setLoading(false);
     }

@@ -26,10 +26,11 @@ interface Product {
   order_number: string;
 }
 
+// Update the ReturnItem interface to allow null for order_id
 interface ReturnItem {
   product_id: string;
   product_name: string;
-  order_id: string;
+  order_id: string | null; // Changed from string to string | null
   order_number: string;
   quantity: number;
 }
@@ -49,6 +50,7 @@ interface ReturnFormProps {
   onSubmit: (reason: string) => void;
   message: { type: 'success' | 'error'; text: string } | null;
   loading: boolean;
+  error?: string | null;
 }
 
 export default function ReturnForm({
@@ -66,6 +68,7 @@ export default function ReturnForm({
   onSubmit,
   message,
   loading,
+  error,
 }: ReturnFormProps) {
   const [reason, setReason] = React.useState('');
 
@@ -79,6 +82,14 @@ export default function ReturnForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Customer Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Customer</label>
@@ -91,11 +102,17 @@ export default function ReturnForm({
                 <SelectValue placeholder="Select customer" />
               </SelectTrigger>
               <SelectContent>
-                {customers.map((customer) => (
-                  <SelectItem key={customer.id} value={customer.id}>
-                    {customer.name}
+                {customers && customers.length > 0 ? (
+                  customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-customers" disabled>
+                    No customers available
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -114,11 +131,17 @@ export default function ReturnForm({
                       <SelectValue placeholder="Select product" />
                     </SelectTrigger>
                     <SelectContent>
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name} - Available: {product.quantity}
+                      {products && products.length > 0 ? (
+                        products.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.name} - Available: {product.quantity}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-products" disabled>
+                          No products available
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -129,7 +152,7 @@ export default function ReturnForm({
                     type="number"
                     min={0}
                     value={quantity}
-                    onChange={(e) => onQuantityChange(parseInt(e.target.value))}
+                    onChange={(e) => onQuantityChange(parseInt(e.target.value) || 0)}
                     disabled={!selectedProduct}
                   />
                 </div>
@@ -213,7 +236,7 @@ export default function ReturnForm({
             </div>
           )}
 
-          {loading && (
+          {loading && !selectedCustomer && (
             <div className="flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
