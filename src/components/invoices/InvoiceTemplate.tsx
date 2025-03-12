@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { Invoice, SalesOrder, Customer } from '@/types/sales';
 import { Product } from '@/types/inventory';
 import { format } from 'date-fns';

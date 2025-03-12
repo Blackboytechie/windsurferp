@@ -697,7 +697,7 @@ function SalesOrderForm({ salesOrder, onClose, onSave }: SalesOrderFormProps) {
       // Use upsert pattern for better performance
       if (salesOrder) {
         // Update existing order
-        const { data: updatedOrder, error: orderError } = await supabase
+        const { error: orderError } = await supabase
           .from('sales_orders')
           .update(orderData)
           .eq('id', salesOrder.id)

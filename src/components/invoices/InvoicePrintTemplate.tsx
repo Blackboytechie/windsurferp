@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { Invoice, SalesOrder, Customer } from '@/types/sales';
 import InvoiceTemplate from './InvoiceTemplate';
 
@@ -16,7 +16,7 @@ interface InvoicePrintTemplateProps {
 
 const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTemplateProps>(
   ({ data }, ref) => {
-    const { invoice, payments } = data;
+    const { invoice} = data;
     
     // Company details
     const companyDetails = {
