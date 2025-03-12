@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product } from '@/types/product';
+import { useTenant } from '@/contexts/TenantContext';
 // import { SalesOrderItem } from '@/types/sales';
 import {
   LineChart,
@@ -61,6 +62,7 @@ const PAYMENT_MODE_COLORS = {
 };
 
 export default function Dashboard() {
+  const { currentTenant } = useTenant();
   const [stats, setStats] = useState<DashboardStats>({
     totalProducts: 0,
     lowStockItems: 0,
@@ -77,27 +79,37 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    if (currentTenant) {
+      fetchDashboardStats();
+    }
+  }, [currentTenant]);
 
   const fetchDashboardStats = async () => {
     try {
+      if (!currentTenant) {
+        console.error('No tenant selected');
+        return;
+      }
+      
       setLoading(true);
 
-      // Fetch total products and low stock items
+      // Fetch total products and low stock items - with proper UUID casting
       const { count: totalProducts } = await supabase
         .from('products')
-        .select('*', { count: 'exact' });
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id);
 
       const { count: lowStockItems } = await supabase
         .from('products')
         .select('*', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id)
         .lt('stock_quantity', 10);
 
-      // Fetch pending sales orders
+      // Fetch pending sales orders - with proper UUID casting
       const { count: pendingSalesOrders } = await supabase
         .from('sales_orders')
         .select('*', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id)
         .eq('status', 'confirmed');
 
       // Calculate monthly revenue
@@ -108,6 +120,7 @@ export default function Dashboard() {
       const { data: monthlyInvoices } = await supabase
         .from('invoices')
         .select('total_amount')
+        .eq('tenant_id', currentTenant.id)
         .gte('created_at', startOfMonth.toISOString());
 
       const monthlyRevenue = monthlyInvoices?.reduce((sum, invoice) => sum + invoice.total_amount, 0) || 0;

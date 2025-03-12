@@ -1,146 +1,147 @@
-import { useState, useEffect } from 'react';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar';
+import Header from './Header';
+import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Toaster } from "@/components/ui/toaster";
+import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 export default function AppLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { currentTenant, loading, error, loadTenant, planFeatures, canUseFeature } = useTenant();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [planStatus, setPlanStatus] = useState<'active'|'expired'|'trial'|null>(null);
 
-  // Close sidebar when route changes (mobile only)
   useEffect(() => {
-    if (window.innerWidth < 1024) { // lg breakpoint
-      setSidebarOpen(false);
-    }
-  }, [location.pathname]);
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
-  // Close sidebar when clicking outside on mobile
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (window.innerWidth < 1024 && sidebarOpen) {
-        const sidebar = document.getElementById('sidebar');
-        const toggleButton = document.getElementById('sidebar-toggle');
-        if (
-          sidebar &&
-          !sidebar.contains(event.target as Node) &&
-          toggleButton &&
-          !toggleButton.contains(event.target as Node)
-        ) {
-          setSidebarOpen(false);
-        }
+    // Add debugging
+    console.log('AppLayout useEffect:', { 
+      user: !!user, 
+      loading, 
+      currentTenant: !!currentTenant, 
+      error 
+    });
+    
+    // Check tenant plan status
+    if (currentTenant) {
+      // Determine plan status based on tenant data
+      if (currentTenant.status === 'active') {
+        setPlanStatus('active');
+      } else if (currentTenant.status === 'trial') {
+        setPlanStatus('trial');
+      } else if (currentTenant.status === 'expired') {
+        setPlanStatus('expired');
       }
-    };
+    }
+    
+    // If user is logged in but has no tenant, redirect to create tenant
+    if (user && !loading && !currentTenant && !error) {
+      console.log('Redirecting to create tenant page');
+      navigate('/auth/create-tenant');
+    }
+    
+    // Force tenant refresh if stuck in loading state for too long
+    if (user && loading && isInitialLoad) {
+      const timer = setTimeout(() => {
+        console.log('Tenant loading taking too long, forcing refresh');
+        loadTenant().then(() => {
+          setIsInitialLoad(false);
+        }).catch(err => {
+          console.error('Error loading tenant:', err);
+          setIsInitialLoad(false);
+        });
+      }, 5000); // Wait 5 seconds before forcing refresh
+      
+      return () => clearTimeout(timer);
+    }
+    
+    if (!loading) {
+      setIsInitialLoad(false);
+    }
+  }, [user, currentTenant, loading, error, navigate, loadTenant, isInitialLoad]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [sidebarOpen]);
+  // Handle plan expiration or payment required
+  const handleUpgradePlan = () => {
+    navigate('/billing/plans');
+  };
 
-  return (
-    <div className="h-screen flex overflow-hidden bg-gray-100">
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity lg:hidden z-20"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+  // Add debugging
+  console.log('AppLayout render:', { 
+    user: !!user, 
+    loading, 
+    currentTenant: !!currentTenant, 
+    error,
+    planStatus
+  });
 
-      {/* Sidebar */}
-      <div
-        id="sidebar"
-        className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 z-30`}
-      >
-        <div className="h-full flex flex-col">
-          <div className="h-16 flex items-center justify-between px-4 border-b">
-            <h1 className="text-xl font-bold text-gray-800">Distribution ERP</h1>
-            <button 
-              className="lg:hidden p-2 rounded-md hover:bg-gray-100"
-              onClick={toggleSidebar}
-              aria-label="Close sidebar"
+  if (loading && isInitialLoad) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <p className="ml-2">Loading tenant data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="max-w-md p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-700 mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/auth/create-tenant')}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+          >
+            Create Organization
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show plan expired notice
+  if (planStatus === 'expired') {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="max-w-md p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Subscription Expired</h2>
+          <p className="text-gray-700 mb-4">
+            Your subscription has expired. Please renew your plan to continue using the system.
+          </p>
+          <div className="flex space-x-4">
+            <button
+              onClick={handleUpgradePlan}
+              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              Renew Subscription
             </button>
-          </div>
-          
-          <nav className="flex-1 p-4 space-y-1">
-            {[
-              { to: '/dashboard', label: 'Dashboard' },
-              { to: '/inventory', label: 'Inventory' },
-              { to: '/purchases', label: 'Purchases' },
-              { to: '/sales', label: 'Sales' },
-              { to: '/quotations', label: 'Quotations' },
-              { to: '/finance', label: 'Finance' },
-              { to: '/reports', label: 'Reports' },
-            ].map(({ to, label }) => (
-              <Link
-                key={to}
-                to={to}
-                className={`block px-4 py-2 rounded-md transition-colors ${
-                  location.pathname === to
-                    ? 'bg-gray-100 text-gray-900 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="p-4 border-t">
-            <div className="flex flex-col items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{user?.email}</p>
-              </div>
-              <Button variant="ghost" onClick={handleSignOut} size="sm">
-                Sign out
-              </Button>
-            </div>
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-4">
-          <button
-            id="sidebar-toggle"
-            className="p-2 rounded-md hover:bg-gray-100 lg:hidden"
-            onClick={toggleSidebar}
-            aria-label="Open sidebar"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-auto bg-gray-50 p-4">
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {planStatus === 'trial' && (
+        <div className="absolute top-0 left-0 right-0 bg-yellow-500 text-white text-center py-1 px-4">
+          You are using a trial version. <button onClick={handleUpgradePlan} className="underline font-medium">Upgrade now</button> to unlock all features.
+        </div>
+      )}
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        <main className={`flex-1 overflow-y-auto p-4 ${planStatus === 'trial' ? 'pt-10' : ''}`}>
           <Outlet />
         </main>
       </div>
-      <Toaster />
     </div>
   );
 }

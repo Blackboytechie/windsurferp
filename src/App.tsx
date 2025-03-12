@@ -4,6 +4,14 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
 import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import ResetPassword from '@/pages/auth/ResetPassword';
+import LandingPage from '@/pages/LandingPage';
+import PlanSelection from '@/pages/auth/PlanSelection';
+import { TenantProvider } from './contexts/TenantContext';
+import { Toaster } from './components/ui/toaster';
+import CreateTenant from '@/pages/auth/create-tenant';
 
 // Lazy load pages
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
@@ -30,152 +38,52 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            
-            {/* Dashboard */}
-            <Route 
-              path="dashboard" 
-              element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <Dashboard />
-                </Suspense>
-              } 
-            />
-
-            {/* Sales Routes */}
-            <Route path="sales">
-              <Route 
-                index 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Sales />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="customers" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Customers />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="sales-orders" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <SalesOrders />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="invoices" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Invoices />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="customer-ledger" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <CustomerLedger />
-                  </Suspense>
-                } 
-              />
-            </Route>
-
-            {/* Purchase Routes */}
-            <Route path="purchases">
-              <Route 
-                index 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Purchases />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="suppliers" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Suppliers />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="purchase-orders" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <PurchaseOrders />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="bills" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <Bills />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="returns" 
-                element={
-                  <Suspense fallback={<div>Loading...</div>}>
-                    <PurchaseReturns />
-                  </Suspense>
-                } 
-              />
-            </Route>
-
-            {/* Other Routes */}
-            <Route 
-              path="inventory" 
-              element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <Inventory />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="quotations" 
-              element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <Quotations />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="finance" 
-              element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <Finance />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="reports" 
-              element={
-                <Suspense fallback={<div>Loading...</div>}>
-                  <Reports />
-                </Suspense>
-              } 
-            />
-          </Route>
-        </Routes>
+        <TenantProvider>
+          <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/auth/login" element={<Login />} />
+              <Route path="/auth/register" element={<Register />} />
+              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
+              
+              {/* Add the plan selection route */}
+              <Route path="/auth/plans" element={<PlanSelection />} />
+              
+              {/* Protected routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/auth/create-tenant" element={<CreateTenant />} />
+                <Route element={<AppLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  
+                  {/* Inventory Routes */}
+                  <Route path="/inventory" element={<Inventory />} />
+                  
+                  {/* Sales Routes */}
+                  <Route path="/sales" element={<Sales />} />
+                  <Route path="/sales/customers" element={<Customers />} />
+                  <Route path="/sales/orders" element={<SalesOrders />} />
+                  <Route path="/sales/invoices" element={<Invoices />} />
+                  <Route path="/sales/customer-ledger" element={<CustomerLedger />} />
+                  
+                  {/* Purchase Routes */}
+                  <Route path="/purchases" element={<Purchases />} />
+                  <Route path="/purchases/suppliers" element={<Suppliers />} />
+                  <Route path="/purchases/orders" element={<PurchaseOrders />} />
+                  <Route path="/purchases/bills" element={<Bills />} />
+                  <Route path="/purchases/returns" element={<PurchaseReturns />} />
+                  
+                  {/* Other Routes */}
+                  <Route path="/quotations" element={<Quotations />} />
+                  <Route path="/finance" element={<Finance />} />
+                  <Route path="/reports" element={<Reports />} />
+                </Route>
+              </Route>
+            </Routes>
+          </Suspense>
+          <Toaster />
+        </TenantProvider>
       </AuthProvider>
     </Router>
   );
