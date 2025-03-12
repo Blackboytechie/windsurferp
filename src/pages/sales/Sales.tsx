@@ -77,57 +77,57 @@ export default function Sales() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card className="overflow-hidden">
-          <CardContent className="p-3 md:p-6">
-            <div className="flex items-center justify-between space-x-2 md:space-x-4">
-              <div>
-                <p className="text-xs md:text-sm font-medium text-muted-foreground truncate">Sales (30d)</p>
-                <h3 className="text-base md:text-2xl font-bold">₹{stats.totalSales.toLocaleString()}</h3>
+          <CardContent className="p-3 md:p-4 lg:p-6">
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Sales (30d)</p>
+                <div className="p-1.5 md:p-2 bg-primary/10 rounded-full">
+                  <Calendar className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 text-primary" />
+                </div>
               </div>
-              <div className="p-1.5 md:p-2 bg-primary/10 rounded-full">
-                <Calendar className="h-3 w-3 md:h-4 md:w-4 text-primary" />
-              </div>
+              <h3 className="text-base md:text-xl lg:text-2xl font-bold">₹{stats.totalSales.toLocaleString()}</h3>
             </div>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
-          <CardContent className="p-3 md:p-6">
-            <div className="flex items-center justify-between space-x-2 md:space-x-4">
-              <div>
-                <p className="text-xs md:text-sm font-medium text-muted-foreground truncate">Pending</p>
-                <h3 className="text-base md:text-2xl font-bold">{stats.pendingInvoices}</h3>
+          <CardContent className="p-3 md:p-4 lg:p-6">
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Pending</p>
+                <div className="p-1.5 md:p-2 bg-yellow-500/10 rounded-full">
+                  <Calendar className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 text-yellow-500" />
+                </div>
               </div>
-              <div className="p-1.5 md:p-2 bg-yellow-500/10 rounded-full">
-                <Calendar className="h-3 w-3 md:h-4 md:w-4 text-yellow-500" />
-              </div>
+              <h3 className="text-base md:text-xl lg:text-2xl font-bold">{stats.pendingInvoices}</h3>
             </div>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
-          <CardContent className="p-3 md:p-6">
-            <div className="flex items-center justify-between space-x-2 md:space-x-4">
-              <div>
-                <p className="text-xs md:text-sm font-medium text-muted-foreground truncate">Customers</p>
-                <h3 className="text-base md:text-2xl font-bold">{stats.totalCustomers}</h3>
+          <CardContent className="p-3 md:p-4 lg:p-6">
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Customers</p>
+                <div className="p-1.5 md:p-2 bg-green-500/10 rounded-full">
+                  <Calendar className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 text-green-500" />
+                </div>
               </div>
-              <div className="p-1.5 md:p-2 bg-green-500/10 rounded-full">
-                <Calendar className="h-3 w-3 md:h-4 md:w-4 text-green-500" />
-              </div>
+              <h3 className="text-base md:text-xl lg:text-2xl font-bold">{stats.totalCustomers}</h3>
             </div>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
-          <CardContent className="p-3 md:p-6">
-            <div className="flex items-center justify-between space-x-2 md:space-x-4">
-              <div>
-                <p className="text-xs md:text-sm font-medium text-muted-foreground truncate">Orders (7d)</p>
-                <h3 className="text-base md:text-2xl font-bold">{stats.recentOrders}</h3>
+          <CardContent className="p-3 md:p-4 lg:p-6">
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Orders (7d)</p>
+                <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-full">
+                  <Calendar className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 text-blue-500" />
+                </div>
               </div>
-              <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-full">
-                <Calendar className="h-3 w-3 md:h-4 md:w-4 text-blue-500" />
-              </div>
+              <h3 className="text-base md:text-xl lg:text-2xl font-bold">{stats.recentOrders}</h3>
             </div>
           </CardContent>
         </Card>

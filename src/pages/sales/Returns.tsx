@@ -10,14 +10,14 @@ interface Product {
   name: string;
   quantity: number;
   order_number: string;
-  order_id: string;
+  order_id: string | null; // Allow null
   stock_quantity?: number;
 }
 
 interface ReturnItem {
   product_id: string;
   product_name: string;
-  order_id: string;
+  order_id: string | null; // Allow null
   order_number: string;
   quantity: number;
 }
@@ -52,7 +52,7 @@ export default function Returns() {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name, email, phone, gst_number, billing_address, shipping_address, status, created_at, updated_at, credit_limit')
+        .select('id, name, email, phone, gst_number, billing_address, shipping_address, status, created_at, updated_at')
         .eq('status', 'active')
         .order('name');
 
@@ -112,8 +112,8 @@ export default function Returns() {
             id: product.id,
             name: product.name,
             quantity: product.stock_quantity,
-            order_id: orderItem?.sales_order?.id ?? '',
-            order_number: orderItem?.sales_order?.order_number ?? ''
+            order_id: orderItem?.sales_order?.id || null, // Use null instead of empty string
+            order_number: orderItem?.sales_order?.order_number || 'Unknown'
           };
         });
 
@@ -259,15 +259,31 @@ export default function Returns() {
         .single();
 
       if (returnError) throw returnError;
-
-      // Create return items
+      
+      // First, get a valid order ID from the database to use as a fallback
+      const { data: validOrders, error: validOrderError } = await supabase
+        .from('sales_orders')
+        .select('id')
+        .eq('customer_id', selectedCustomer)
+        .limit(1);
+        
+      if (validOrderError) throw validOrderError;
+      
+      const fallbackOrderId = validOrders && validOrders.length > 0 ? validOrders[0].id : null;
+      
+      if (!fallbackOrderId) {
+        throw new Error('No valid order ID found for this customer. Customer must have at least one order to process returns.');
+      }
+      
+      // Create return items with a valid order_id
       const returnItemsData = returnItems.map(item => ({
         return_id: returnData.id,
         product_id: item.product_id,
-        order_id: item.order_id,
+        // Use a valid order ID from the database if none exists
+        order_id: item.order_id || fallbackOrderId,
         quantity: item.quantity,
       }));
-
+      
       const { error: itemsError } = await supabase
         .from('sales_return_items')
         .insert(returnItemsData);

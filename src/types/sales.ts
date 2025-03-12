@@ -65,6 +65,8 @@ export interface Invoice {
   status: 'pending' | 'partial' | 'paid' | 'overdue';
   subtotal: number;
   gst_amount: number;
+  tax_amount?: number; 
+  discount_amount: number;  // Add this field
   total_amount: number;
   paid_amount: number;
   created_at: string;
